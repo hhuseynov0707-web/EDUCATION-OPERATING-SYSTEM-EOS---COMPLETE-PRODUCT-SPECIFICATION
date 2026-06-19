@@ -11,15 +11,16 @@
 | 5 | Attendance marking | `/attendance` | teacher/admin | ✅ built |
 | 6 | Payments | `/payments` | admin | ✅ built |
 | 7 | At-Risk | `/risk` | admin | ✅ built |
-| 8 | Student profile | `/students/:id` | admin/teacher | API ready (analytics endpoint) |
-| 9 | Group detail / roster | `/groups/:id` | admin/teacher | API ready |
-| 10 | Curriculum board | `/curriculum/:groupId` | teacher/admin | API ready |
-| 11 | Exams & results | `/exams` | teacher/admin | API ready |
-| 12 | Audit log viewer | `/audit` | admin | API ready |
+| 8 | Student profile | `/students/:id` | admin/teacher | ✅ built (analytics, exam trend, notes timeline + quick add) |
+| 9 | Group detail / roster | `/groups/:id` | admin/teacher | ✅ built (roster, schedule, exams) |
+| 10 | Curriculum board | inside `/groups/:id` | teacher/admin | ✅ built (3-state topic toggles + coverage) |
+| 11 | Exams & results | `/exams`, `/exams/:id` | teacher/admin | ✅ built (create + fast score entry + ranking) |
+| 12 | Audit log viewer | `/audit` | admin | ✅ built (filters + pagination) |
 | 13 | Parent portal | `/parent` | parent | future |
 
-> "API ready" = backend endpoints exist and are tested; the screen is a thin
-> client away. The MVP ships the highest-frequency screens first.
+> The curriculum board lives **inside** the group detail page (curriculum
+> progress is per-group), which keeps navigation minimal and the workflow in one
+> place. All Phase-1 + Phase-2 screens are built; remaining items are portals.
 
 ## Layout
 

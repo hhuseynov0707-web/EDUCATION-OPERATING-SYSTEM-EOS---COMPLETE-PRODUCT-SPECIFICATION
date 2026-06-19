@@ -1,6 +1,9 @@
 'use client';
 
+import { CalendarCheck } from 'lucide-react';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
@@ -22,18 +25,17 @@ interface TeacherDash {
   groups: { id: string; name: string; subject: string; students: number }[];
 }
 
-function Stat({ title, value, sub }: { title: string; value: string; sub?: string }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>{title}</CardTitle>
-      </CardHeader>
+function Stat({ title, value, sub, href }: { title: string; value: string; sub?: string; href?: string }) {
+  const inner = (
+    <Card className={href ? 'h-full transition-shadow hover:shadow-md' : undefined}>
+      <CardHeader><CardTitle>{title}</CardTitle></CardHeader>
       <CardContent>
         <div className="text-2xl font-semibold">{value}</div>
         {sub && <div className="mt-1 text-xs text-muted-foreground">{sub}</div>}
       </CardContent>
     </Card>
   );
+  return href ? <Link href={href}>{inner}</Link> : inner;
 }
 
 export default function DashboardPage() {
@@ -53,31 +55,30 @@ export default function DashboardPage() {
       <div className="space-y-6">
         <h1 className="text-2xl font-semibold">Admin Dashboard</h1>
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-          <Stat title="Total Students" value={String(admin.students.total)} sub={`${admin.students.active} active`} />
+          <Stat title="Total Students" value={String(admin.students.total)} sub={`${admin.students.active} active`} href="/students" />
           <Stat title="Active Teachers" value={String(admin.teachers.active)} />
           <Stat
             title="Today's Attendance"
             value={admin.attendanceToday.rate !== null ? `${admin.attendanceToday.rate}%` : '—'}
             sub={`${admin.attendanceToday.present}/${admin.attendanceToday.marked} present`}
+            href="/attendance"
           />
-          <Stat title="At-Risk Students" value={String(admin.risk.total)} sub={`${admin.risk.HIGH} high · ${admin.risk.CRITICAL} critical`} />
-          <Stat title="Expected Revenue" value={formatMoney(admin.revenue.expected)} sub="this month" />
-          <Stat title="Collected" value={formatMoney(admin.revenue.collected)} sub="this month" />
-          <Stat title="Overdue" value={formatMoney(admin.revenue.overdue)} sub="outstanding" />
+          <Stat title="At-Risk Students" value={String(admin.risk.total)} sub={`${admin.risk.HIGH} high · ${admin.risk.CRITICAL} critical`} href="/risk" />
+          <Stat title="Expected Revenue" value={formatMoney(admin.revenue.expected)} sub="this month" href="/payments" />
+          <Stat title="Collected" value={formatMoney(admin.revenue.collected)} sub="this month" href="/payments" />
+          <Stat title="Overdue" value={formatMoney(admin.revenue.overdue)} sub="outstanding" href="/payments" />
         </div>
 
         <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-          </CardHeader>
+          <CardHeader><CardTitle>Recent Activity</CardTitle></CardHeader>
           <CardContent>
             <ul className="space-y-2 text-sm">
               {admin.recentActivity.map((a) => (
                 <li key={a.id} className="flex justify-between border-b border-border pb-1 last:border-0">
-                  <span>
-                    <span className="font-medium">{a.action}</span> {a.entity}
+                  <span><span className="font-medium">{a.action}</span> {a.entity}</span>
+                  <span className="text-muted-foreground">
+                    {a.actor?.email ?? 'system'} · {new Date(a.createdAt).toLocaleString()}
                   </span>
-                  <span className="text-muted-foreground">{a.actor?.email ?? 'system'}</span>
                 </li>
               ))}
               {admin.recentActivity.length === 0 && <li className="text-muted-foreground">No activity yet.</li>}
@@ -93,27 +94,48 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold">Teacher Dashboard</h1>
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <Stat title="My Groups" value={String(teacher.groupCount)} />
-        <Stat title="My Students" value={String(teacher.studentCount)} />
+        <Stat title="My Groups" value={String(teacher.groupCount)} href="/groups" />
+        <Stat title="My Students" value={String(teacher.studentCount)} href="/students" />
         <Stat title="Today's Lessons" value={String(teacher.todayLessons.length)} />
       </div>
+
       <Card>
-        <CardHeader>
-          <CardTitle>Today&apos;s Lessons</CardTitle>
-        </CardHeader>
+        <CardHeader><CardTitle>Today&apos;s Lessons</CardTitle></CardHeader>
         <CardContent>
           {teacher.todayLessons.length === 0 ? (
             <p className="text-sm text-muted-foreground">No lessons scheduled today.</p>
           ) : (
-            <ul className="space-y-2 text-sm">
+            <ul className="space-y-2">
               {teacher.todayLessons.map((l) => (
-                <li key={l.groupId} className="flex justify-between">
-                  <span>
-                    {l.name} <span className="text-muted-foreground">({l.subject})</span>
-                  </span>
-                  <span className={l.attendanceMarked ? 'text-green-600' : 'text-amber-600'}>
-                    {l.attendanceMarked ? 'Attendance done' : 'Mark attendance'}
-                  </span>
+                <li key={l.groupId} className="flex items-center justify-between rounded-md border border-border p-3">
+                  <div>
+                    <Link href={`/groups/${l.groupId}`} className="font-medium hover:underline">{l.name}</Link>
+                    <span className="text-muted-foreground"> · {l.subject} · {l.students} students</span>
+                  </div>
+                  <Link href={`/attendance?group=${l.groupId}`}>
+                    <Button variant={l.attendanceMarked ? 'outline' : 'default'} size="sm">
+                      <CalendarCheck size={14} />
+                      {l.attendanceMarked ? 'Edit attendance' : 'Mark attendance'}
+                    </Button>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>My Groups</CardTitle></CardHeader>
+        <CardContent>
+          {teacher.groups.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No groups assigned.</p>
+          ) : (
+            <ul className="divide-y divide-border text-sm">
+              {teacher.groups.map((g) => (
+                <li key={g.id} className="flex items-center justify-between py-1.5">
+                  <Link href={`/groups/${g.id}`} className="font-medium hover:underline">{g.name}</Link>
+                  <span className="text-muted-foreground">{g.subject} · {g.students} students</span>
                 </li>
               ))}
             </ul>

@@ -44,7 +44,10 @@ export default function AttendancePage() {
       .get<{ data: Group[] }>('/groups?limit=100')
       .then((r) => {
         setGroups(r.data);
-        if (r.data[0]) setGroupId(r.data[0].id);
+        // Preselect via ?group=<id> (e.g. from the teacher dashboard), else first.
+        const pre = new URLSearchParams(window.location.search).get('group');
+        if (pre && r.data.some((g) => g.id === pre)) setGroupId(pre);
+        else if (r.data[0]) setGroupId(r.data[0].id);
       })
       .catch(() => undefined);
   }, []);

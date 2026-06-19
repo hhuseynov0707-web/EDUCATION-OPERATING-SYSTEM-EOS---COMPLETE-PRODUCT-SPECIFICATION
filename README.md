@@ -109,7 +109,18 @@ npm run dev                    # http://localhost:3000
 
 ## Status
 
-Phase 0 (foundation) and Phase 1 (core MVP) are complete: the full backend is
-implemented and was verified end-to-end against a live PostgreSQL, and the
-critical frontend screens (dashboard, students, attendance, payments, at-risk)
-are built. See [docs/10-mvp-plan.md](docs/10-mvp-plan.md) for what's next.
+Phases 0–2 are complete. The full backend is implemented and verified
+end-to-end against a live PostgreSQL. The web app now covers the full daily
+workflow:
+
+- Admin & teacher **dashboards** (cards deep-link to the relevant screen)
+- **Students** list + **student profile** (analytics, exam trend chart, notes
+  timeline with inline quick-add)
+- **Groups** list + **group detail** (schedule, roster, **curriculum board**, exams)
+- **Attendance** fast-mark (group preselectable from the teacher dashboard)
+- **Exams** list + create + **fast per-student score entry** with ranked results
+- **Payments** (revenue summary, statuses, monthly generation)
+- **At-Risk** list with recompute
+- **Audit log** viewer (admin)
+
+See [docs/10-mvp-plan.md](docs/10-mvp-plan.md) for deferred follow-ups and Phase 3+.

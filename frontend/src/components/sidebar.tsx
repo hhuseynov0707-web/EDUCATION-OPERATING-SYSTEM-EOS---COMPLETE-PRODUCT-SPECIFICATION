@@ -3,7 +3,10 @@
 import {
   CalendarCheck,
   CreditCard,
+  FileText,
+  GraduationCap,
   LayoutDashboard,
+  Layers,
   LogOut,
   ShieldAlert,
   Users,
@@ -16,9 +19,12 @@ import { cn } from '@/lib/utils';
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
   { href: '/students', label: 'Students', icon: Users, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
+  { href: '/groups', label: 'Groups', icon: Layers, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
   { href: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
+  { href: '/exams', label: 'Exams', icon: GraduationCap, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
   { href: '/payments', label: 'Payments', icon: CreditCard, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/risk', label: 'At-Risk', icon: ShieldAlert, roles: ['SUPER_ADMIN', 'ADMIN'] },
+  { href: '/audit', label: 'Audit Log', icon: FileText, roles: ['SUPER_ADMIN', 'ADMIN'] },
 ];
 
 export function Sidebar() {

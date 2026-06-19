@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
@@ -81,7 +82,9 @@ export default function StudentsPage() {
               return (
                 <tr key={s.id} className="border-t border-border hover:bg-muted/50">
                   <td className="px-4 py-2 font-medium">
-                    {s.firstName} {s.lastName}
+                    <Link href={`/students/${s.id}`} className="hover:underline">
+                      {s.firstName} {s.lastName}
+                    </Link>
                   </td>
                   <td className="px-4 py-2">
                     <Badge tone={statusTone[s.status] ?? 'gray'}>{s.status}</Badge>

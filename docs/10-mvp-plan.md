@@ -34,16 +34,26 @@ All backend endpoints are implemented and were verified end-to-end against a
 live PostgreSQL during the build (login → RBAC → attendance → payments summary →
 risk recompute).
 
-## Phase 2 — Complete the UI (next)
+## Phase 2 — Complete the UI ✅ (done)
 
-Thin client screens over existing APIs:
-1. Student profile page (analytics, notes timeline, exam trend chart).
-2. Group detail + enroll/unenroll UI.
-3. Exams & results entry screen.
-4. Curriculum board (per group).
-5. Audit log viewer.
-6. Record-payment / create-invoice modals.
-7. Charts (attendance over time, score trends) via a chart lib.
+Thin client screens over the existing APIs — no backend/schema changes:
+1. ✅ **Student profile** — analytics cards, dependency-free exam **trend chart**,
+   groups, parents, and a **notes timeline with inline quick-add**.
+2. ✅ **Groups** — card list + **group detail** (schedule, roster, coverage).
+3. ✅ **Exams UI** — list + create form + **fast per-student score entry** and
+   ranked results with stats.
+4. ✅ **Curriculum board** — embedded in group detail; 3-state topic toggles
+   (not-started / in-progress / completed) updating live coverage %.
+5. ✅ **Audit log viewer** — admin-only, filter by action/entity + pagination.
+6. ✅ **Admin dashboard** — stat cards now deep-link to the relevant screen;
+   recent activity shows actor + timestamp.
+7. ✅ **Teacher workflow** — today's lessons link straight to attendance with the
+   group **preselected** (`/attendance?group=`); "My Groups" quick list.
+
+### Deferred (small follow-ups, not blocking daily use)
+- Enroll/unenroll students from the group detail UI (API exists: `POST /groups/:id/enroll`).
+- Record-payment / create-invoice modals on the payments screen (APIs exist).
+- Attendance-over-time chart on the student profile (trend chart component is reusable).
 
 ## Phase 3 — Portals & polish
 
