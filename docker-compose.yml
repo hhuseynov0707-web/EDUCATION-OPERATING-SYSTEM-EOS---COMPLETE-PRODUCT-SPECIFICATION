@@ -1,0 +1,66 @@
+# ──────────────────────────────────────────────────────────────────────────
+#  EOS — local development & self-hosted stack.
+#  For free cloud hosting use Neon (DB) + Render/Railway (API) + Vercel (web);
+#  see docs/09-deployment-plan.md. This compose file gives a one-command local
+#  environment that mirrors production.
+# ──────────────────────────────────────────────────────────────────────────
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-eos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-eos_dev_password_change_me}
+      POSTGRES_DB: ${POSTGRES_DB:-eos}
+    ports:
+      - '${POSTGRES_PORT:-5432}:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U ${POSTGRES_USER:-eos}']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - '${REDIS_PORT:-6379}:6379'
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      NODE_ENV: production
+      BACKEND_PORT: 4000
+      DATABASE_URL: postgresql://${POSTGRES_USER:-eos}:${POSTGRES_PASSWORD:-eos_dev_password_change_me}@postgres:5432/${POSTGRES_DB:-eos}?schema=public
+      DIRECT_URL: postgresql://${POSTGRES_USER:-eos}:${POSTGRES_PASSWORD:-eos_dev_password_change_me}@postgres:5432/${POSTGRES_DB:-eos}?schema=public
+      REDIS_URL: redis://redis:6379
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-change_me_access_secret}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-change_me_refresh_secret}
+      JWT_ACCESS_TTL: ${JWT_ACCESS_TTL:-15m}
+      JWT_REFRESH_TTL: ${JWT_REFRESH_TTL:-7d}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+    ports:
+      - '${BACKEND_PORT:-4000}:4000'
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - backend
+    environment:
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:4000/api/v1}
+    ports:
+      - '${FRONTEND_PORT:-3000}:3000'
+
+volumes:
+  pgdata:
