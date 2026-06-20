@@ -15,6 +15,7 @@ import { CurriculumModule } from './modules/curriculum/curriculum.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { ExamsModule } from './modules/exams/exams.module';
 import { GroupsModule } from './modules/groups/groups.module';
+import { MessagesModule } from './modules/messages/messages.module';
 import { NotesModule } from './modules/notes/notes.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { RiskModule } from './modules/risk/risk.module';
@@ -34,6 +35,7 @@ import { TeachersModule } from './modules/teachers/teachers.module';
     StudentsModule,
     TeachersModule,
     GroupsModule,
+    MessagesModule,
     AttendanceModule,
     PaymentsModule,
     ExamsModule,
