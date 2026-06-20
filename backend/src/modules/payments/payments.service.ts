@@ -37,6 +37,7 @@ export class PaymentsService {
   async findAll(query: QueryPaymentsDto): Promise<PaginatedResult<unknown>> {
     const where: Prisma.PaymentWhereInput = {
       deletedAt: null,
+      student: { deletedAt: null }, // exclude removed (e.g. demo) students
       ...(query.status ? { status: query.status } : {}),
       ...(query.studentId ? { studentId: query.studentId } : {}),
       ...(query.periodYear ? { periodYear: query.periodYear } : {}),
@@ -146,7 +147,7 @@ export class PaymentsService {
   /** Revenue figures for the admin dashboard, scoped to a period. */
   async summary(periodYear: number, periodMonth: number) {
     const payments = await this.prisma.payment.findMany({
-      where: { deletedAt: null, periodYear, periodMonth },
+      where: { deletedAt: null, student: { deletedAt: null }, periodYear, periodMonth },
       select: { amountDue: true, discount: true, amountPaid: true, status: true },
     });
 

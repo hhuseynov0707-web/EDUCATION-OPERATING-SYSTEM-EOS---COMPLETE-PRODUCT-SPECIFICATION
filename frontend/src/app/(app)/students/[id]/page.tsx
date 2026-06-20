@@ -8,10 +8,14 @@ import { TrendChart } from '@/components/trend-chart';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { formatDate, formatMoney } from '@/lib/utils';
+
+const STUDENT_STATUSES = ['ACTIVE', 'FROZEN', 'GRADUATED', 'LEFT'];
 
 interface StudentDetail {
   id: string;
@@ -66,20 +70,64 @@ function Stat({ title, value, sub }: { title: string; value: string; sub?: strin
 
 export default function StudentProfilePage() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const [student, setStudent] = useState<StudentDetail | null>(null);
   const [notes, setNotes] = useState<Note[]>([]);
   const [noteType, setNoteType] = useState('GENERAL');
   const [noteText, setNoteText] = useState('');
   const [saving, setSaving] = useState(false);
 
+  const [editing, setEditing] = useState(false);
+  const [ef, setEf] = useState({ firstName: '', lastName: '', phone: '', email: '', dateOfBirth: '', status: 'ACTIVE', enrollmentDate: '' });
+  const [savingEdit, setSavingEdit] = useState(false);
+
+  const loadStudent = useCallback(() => {
+    api.get<StudentDetail>(`/students/${id}`).then(setStudent).catch(() => undefined);
+  }, [id]);
   const loadNotes = useCallback(() => {
     api.get<Note[]>(`/notes/student/${id}`).then(setNotes).catch(() => undefined);
   }, [id]);
 
   useEffect(() => {
-    api.get<StudentDetail>(`/students/${id}`).then(setStudent).catch(() => undefined);
+    loadStudent();
     loadNotes();
-  }, [id, loadNotes]);
+  }, [id, loadStudent, loadNotes]);
+
+  function openEdit() {
+    if (!student) return;
+    setEditing(true);
+    setEf({
+      firstName: student.firstName,
+      lastName: student.lastName,
+      phone: student.phone ?? '',
+      email: student.email ?? '',
+      dateOfBirth: student.dateOfBirth ? student.dateOfBirth.slice(0, 10) : '',
+      status: student.status,
+      enrollmentDate: student.enrollmentDate ? student.enrollmentDate.slice(0, 10) : '',
+    });
+  }
+
+  async function saveEdit() {
+    setSavingEdit(true);
+    try {
+      await api.patch(`/students/${id}`, {
+        firstName: ef.firstName,
+        lastName: ef.lastName,
+        phone: ef.phone || undefined,
+        email: ef.email || undefined,
+        dateOfBirth: ef.dateOfBirth || undefined,
+        status: ef.status,
+        enrollmentDate: ef.enrollmentDate || undefined,
+      });
+      setEditing(false);
+      loadStudent();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not save student.');
+    } finally {
+      setSavingEdit(false);
+    }
+  }
 
   async function addNote() {
     if (!noteText.trim()) return;
@@ -109,7 +157,41 @@ export default function StudentProfilePage() {
         <h1 className="text-2xl font-semibold">{student.firstName} {student.lastName}</h1>
         <Badge tone={statusTone[student.status] ?? 'gray'}>{student.status}</Badge>
         {risk && risk.score > 0 && <Badge tone={riskTone[risk.level]}>RISK: {risk.level} ({risk.score})</Badge>}
+        {isAdmin && (
+          <Button variant="outline" size="sm" className="ml-auto" onClick={editing ? () => setEditing(false) : openEdit}>
+            {editing ? 'Cancel' : 'Edit'}
+          </Button>
+        )}
       </div>
+
+      {editing && isAdmin && (
+        <Card>
+          <CardHeader><CardTitle>Edit student</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              <div><label className="mb-1 block text-xs font-medium text-muted-foreground">First name</label><Input value={ef.firstName} onChange={(e) => setEf({ ...ef, firstName: e.target.value })} /></div>
+              <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Last name</label><Input value={ef.lastName} onChange={(e) => setEf({ ...ef, lastName: e.target.value })} /></div>
+              <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Phone</label><Input value={ef.phone} onChange={(e) => setEf({ ...ef, phone: e.target.value })} /></div>
+              <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Email</label><Input type="email" value={ef.email} onChange={(e) => setEf({ ...ef, email: e.target.value })} /></div>
+              <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Date of birth</label><Input type="date" value={ef.dateOfBirth} onChange={(e) => setEf({ ...ef, dateOfBirth: e.target.value })} /></div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Enrollment date</label>
+                <Input type="date" value={ef.enrollmentDate} onChange={(e) => setEf({ ...ef, enrollmentDate: e.target.value })} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Status</label>
+                <Select value={ef.status} onChange={(e) => setEf({ ...ef, status: e.target.value })} className="w-full">
+                  {STUDENT_STATUSES.map((s) => <option key={s} value={s}>{s}</option>)}
+                </Select>
+              </div>
+            </div>
+            <div className="mt-4 flex gap-2">
+              <Button onClick={saveEdit} disabled={savingEdit}>{savingEdit ? 'Saving…' : 'Save changes'}</Button>
+              <Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {risk && risk.score > 0 && (
         <Card className="border-red-200 bg-red-50">

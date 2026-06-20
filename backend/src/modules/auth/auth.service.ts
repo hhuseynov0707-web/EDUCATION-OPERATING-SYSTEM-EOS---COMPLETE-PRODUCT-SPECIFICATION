@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   Injectable,
   UnauthorizedException,
 } from '@nestjs/common';
@@ -96,6 +97,22 @@ export class AuthService {
     });
   }
 
+  async changeEmail(userId: string, newEmail: string, currentPassword: string): Promise<PublicUser> {
+    const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
+    const ok = await argon2.verify(user.passwordHash, currentPassword);
+    if (!ok) throw new UnauthorizedException('Current password is incorrect');
+
+    const email = newEmail.toLowerCase();
+    const taken = await this.prisma.user.findFirst({
+      where: { email, id: { not: userId } },
+      select: { id: true },
+    });
+    if (taken) throw new ConflictException('That email is already in use');
+
+    const updated = await this.prisma.user.update({ where: { id: userId }, data: { email } });
+    return this.toPublicUser(updated);
+  }
+
   async me(userId: string): Promise<PublicUser> {
     const user = await this.prisma.user.findUniqueOrThrow({ where: { id: userId } });
     return this.toPublicUser(user);
@@ -126,7 +143,8 @@ export class AuthService {
       { ...payload, jti },
       {
         secret: process.env.JWT_REFRESH_SECRET ?? 'change_me_refresh_secret',
-        expiresIn: process.env.JWT_REFRESH_TTL ?? '7d',
+        // Keep teachers signed in for a month so they rarely re-enter credentials.
+        expiresIn: process.env.JWT_REFRESH_TTL ?? '30d',
       },
     );
 

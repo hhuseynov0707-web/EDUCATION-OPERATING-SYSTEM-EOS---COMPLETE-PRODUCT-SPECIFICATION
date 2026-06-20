@@ -1,0 +1,16 @@
+name: Keep backend awake
+
+# Render's free tier sleeps after ~15 min idle (cold start ~30-60s) and Neon
+# suspends after ~5 min. Pinging /health keeps both warm so pages load fast.
+on:
+  schedule:
+    - cron: '*/10 * * * *' # every ~10 minutes (GitHub may delay under load)
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping health endpoint
+        run: |
+          curl -fsS --max-time 90 https://eos-backend-ek86.onrender.com/api/v1/health || true

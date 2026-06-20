@@ -36,7 +36,12 @@ export class DashboardService {
         orderBy: { status: 'asc' },
       }),
       this.prisma.payment.findMany({
-        where: { deletedAt: null, periodYear: now.getUTCFullYear(), periodMonth: now.getUTCMonth() + 1 },
+        where: {
+          deletedAt: null,
+          student: { deletedAt: null },
+          periodYear: now.getUTCFullYear(),
+          periodMonth: now.getUTCMonth() + 1,
+        },
         select: { amountDue: true, discount: true, amountPaid: true, status: true },
       }),
       this.prisma.riskFlag.groupBy({

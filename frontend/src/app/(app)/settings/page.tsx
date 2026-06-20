@@ -15,6 +15,26 @@ export default function SettingsPage() {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const [newEmail, setNewEmail] = useState('');
+  const [emailPwd, setEmailPwd] = useState('');
+  const [emailMsg, setEmailMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [savingEmail, setSavingEmail] = useState(false);
+
+  async function changeEmail(e: React.FormEvent) {
+    e.preventDefault();
+    setEmailMsg(null);
+    setSavingEmail(true);
+    try {
+      await api.patch('/auth/email', { newEmail, currentPassword: emailPwd });
+      setEmailMsg({ ok: true, text: 'Email updated. Reloading…' });
+      setTimeout(() => window.location.reload(), 900);
+    } catch (err) {
+      setEmailMsg({ ok: false, text: err instanceof Error ? err.message : 'Could not change email.' });
+    } finally {
+      setSavingEmail(false);
+    }
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setMsg(null);
@@ -49,6 +69,24 @@ export default function SettingsPage() {
         <CardContent className="space-y-1 text-sm">
           <div className="flex justify-between"><span className="text-muted-foreground">Email</span><span className="font-medium">{user?.email}</span></div>
           <div className="flex justify-between"><span className="text-muted-foreground">Role</span><span className="font-medium">{user?.role?.replace('_', ' ')}</span></div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader><CardTitle>Change login email</CardTitle></CardHeader>
+        <CardContent>
+          <form onSubmit={changeEmail} className="space-y-3">
+            <div>
+              <label className="mb-1 block text-sm font-medium">New email</label>
+              <Input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required />
+            </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium">Current password (to confirm)</label>
+              <Input type="password" value={emailPwd} onChange={(e) => setEmailPwd(e.target.value)} required />
+            </div>
+            {emailMsg && <p className={emailMsg.ok ? 'text-sm text-green-600' : 'text-sm text-red-600'}>{emailMsg.text}</p>}
+            <Button disabled={savingEmail}>{savingEmail ? 'Saving…' : 'Change email'}</Button>
+          </form>
         </CardContent>
       </Card>
 

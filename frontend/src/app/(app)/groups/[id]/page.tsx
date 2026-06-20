@@ -58,6 +58,7 @@ export default function GroupDetailPage() {
   const [allStudents, setAllStudents] = useState<StudentLite[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [studentSearch, setStudentSearch] = useState('');
+  const [enrollMsg, setEnrollMsg] = useState<string | null>(null);
 
   // Edit-settings state (admin only)
   const [editing, setEditing] = useState(false);
@@ -83,15 +84,27 @@ export default function GroupDetailPage() {
     setPicker(true);
     setSelected({});
     setStudentSearch('');
-    api.get<{ data: StudentLite[] }>('/students?limit=200').then((r) => setAllStudents(r.data)).catch(() => undefined);
+    setEnrollMsg(null);
+    api
+      .get<{ data: StudentLite[] }>('/students?limit=200')
+      .then((r) => setAllStudents(r.data))
+      .catch((e) => setEnrollMsg(e instanceof Error ? e.message : 'Could not load students.'));
   }
 
   async function enroll() {
     const studentIds = Object.keys(selected).filter((k) => selected[k]);
-    if (studentIds.length === 0) return;
-    await api.post(`/groups/${id}/enroll`, { studentIds }).catch(() => undefined);
-    setPicker(false);
-    loadGroup();
+    if (studentIds.length === 0) {
+      setEnrollMsg('Select at least one student first.');
+      return;
+    }
+    setEnrollMsg(null);
+    try {
+      await api.post(`/groups/${id}/enroll`, { studentIds });
+      setPicker(false);
+      loadGroup();
+    } catch (e) {
+      setEnrollMsg(e instanceof Error ? e.message : 'Could not add students.');
+    }
   }
 
   async function removeStudent(studentId: string) {
@@ -259,10 +272,14 @@ export default function GroupDetailPage() {
               <div className="mb-3 rounded-md border border-border p-3">
                 <Input placeholder="Search students…" value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} className="mb-2" />
                 <div className="max-h-48 overflow-auto">
-                  {allStudents
-                    .filter((s) => !active.some((e) => e.student.id === s.id))
-                    .filter((s) => `${s.firstName} ${s.lastName}`.toLowerCase().includes(studentSearch.toLowerCase()))
-                    .map((s) => (
+                  {(() => {
+                    const available = allStudents
+                      .filter((s) => !active.some((e) => e.student.id === s.id))
+                      .filter((s) => `${s.firstName} ${s.lastName}`.toLowerCase().includes(studentSearch.toLowerCase()));
+                    if (available.length === 0) {
+                      return <p className="py-2 text-sm text-muted-foreground">No students to add. Create students under “Students” first.</p>;
+                    }
+                    return available.map((s) => (
                       <label key={s.id} className="flex items-center gap-2 py-1 text-sm">
                         <input
                           type="checkbox"
@@ -271,8 +288,10 @@ export default function GroupDetailPage() {
                         />
                         {s.firstName} {s.lastName}
                       </label>
-                    ))}
+                    ));
+                  })()}
                 </div>
+                {enrollMsg && <p className="mt-1 text-sm text-red-600">{enrollMsg}</p>}
                 <Button size="sm" className="mt-2" onClick={enroll}>Enroll selected</Button>
               </div>
             )}

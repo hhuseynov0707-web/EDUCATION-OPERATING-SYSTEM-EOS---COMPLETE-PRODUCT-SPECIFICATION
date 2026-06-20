@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Post, Req } from '@nestjs/common';
+import { Body, Controller, Get, Patch, Post, Req } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Request } from 'express';
 import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Public } from '../../common/decorators/public.decorator';
 import { AuthService } from './auth.service';
+import { ChangeEmailDto } from './dto/change-email.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
@@ -46,6 +47,12 @@ export class AuthController {
   ) {
     await this.auth.changePassword(userId, dto.currentPassword, dto.newPassword);
     return { success: true };
+  }
+
+  @ApiBearerAuth()
+  @Patch('email')
+  changeEmail(@CurrentUser('userId') userId: string, @Body() dto: ChangeEmailDto) {
+    return this.auth.changeEmail(userId, dto.newEmail, dto.currentPassword);
   }
 }
 
