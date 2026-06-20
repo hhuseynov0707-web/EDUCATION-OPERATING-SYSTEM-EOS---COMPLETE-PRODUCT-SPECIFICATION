@@ -16,7 +16,23 @@ async function bootstrap() {
     .map((o) => o.trim());
 
   app.use(helmet());
-  app.enableCors({ origin: corsOrigins, credentials: true });
+  app.enableCors({
+    // Allow configured origins, any *.vercel.app deployment, and non-browser
+    // clients (which send no Origin header). Auth is via Bearer tokens, not
+    // cookies, so permitting Vercel subdomains is safe here.
+    origin: (origin, callback) => {
+      if (!origin) return callback(null, true);
+      let hostname = '';
+      try {
+        hostname = new URL(origin).hostname;
+      } catch {
+        /* malformed origin → treat as not allowed */
+      }
+      const allowed = corsOrigins.includes(origin) || hostname.endsWith('.vercel.app');
+      return callback(allowed ? null : new Error('Not allowed by CORS'), allowed);
+    },
+    credentials: true,
+  });
 
   // All routes are prefixed with /api/v1
   app.setGlobalPrefix('api');
