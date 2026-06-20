@@ -79,6 +79,16 @@ export default function StudentsPage() {
     }
   }
 
+  async function deleteStudent(id: string, name: string) {
+    if (!window.confirm(`Delete student ${name}? They are marked as left and hidden. History is kept.`)) return;
+    try {
+      await api.delete(`/students/${id}`);
+      load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not delete student.');
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -128,6 +138,7 @@ export default function StudentsPage() {
               <th className="px-4 py-2">Groups</th>
               <th className="px-4 py-2">Phone</th>
               <th className="px-4 py-2">Risk</th>
+              {isAdmin && <th className="px-4 py-2"></th>}
             </tr>
           </thead>
           <tbody>
@@ -154,12 +165,23 @@ export default function StudentsPage() {
                       <span className="text-muted-foreground">—</span>
                     )}
                   </td>
+                  {isAdmin && (
+                    <td className="px-4 py-2 text-right">
+                      <Button
+                        variant="destructive"
+                        size="sm"
+                        onClick={() => deleteStudent(s.id, `${s.firstName} ${s.lastName}`)}
+                      >
+                        Delete
+                      </Button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
             {result && result.data.length === 0 && (
               <tr>
-                <td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">
+                <td colSpan={isAdmin ? 6 : 5} className="px-4 py-6 text-center text-muted-foreground">
                   No students found.
                 </td>
               </tr>

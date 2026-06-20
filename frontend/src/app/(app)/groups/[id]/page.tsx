@@ -7,7 +7,9 @@ import { useCallback, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 import { cn, formatDate, formatMoney } from '@/lib/utils';
 
 interface GroupDetail {
@@ -38,21 +40,53 @@ const TOPIC_STATES = [
   { key: 'COMPLETED', label: '✓', cls: 'bg-green-600 text-white' },
 ];
 
+interface StudentLite { id: string; firstName: string; lastName: string }
+
 export default function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const [group, setGroup] = useState<GroupDetail | null>(null);
   const [board, setBoard] = useState<Board | null>(null);
   const [exams, setExams] = useState<ExamRow[]>([]);
+  const [picker, setPicker] = useState(false);
+  const [allStudents, setAllStudents] = useState<StudentLite[]>([]);
+  const [selected, setSelected] = useState<Record<string, boolean>>({});
+  const [studentSearch, setStudentSearch] = useState('');
 
+  const loadGroup = useCallback(() => {
+    api.get<GroupDetail>(`/groups/${id}`).then(setGroup).catch(() => undefined);
+  }, [id]);
   const loadBoard = useCallback(() => {
     api.get<Board>(`/curriculum/group/${id}`).then(setBoard).catch(() => undefined);
   }, [id]);
 
   useEffect(() => {
-    api.get<GroupDetail>(`/groups/${id}`).then(setGroup).catch(() => undefined);
+    loadGroup();
     api.get<ExamRow[]>(`/exams?groupId=${id}`).then(setExams).catch(() => undefined);
     loadBoard();
-  }, [id, loadBoard]);
+  }, [id, loadGroup, loadBoard]);
+
+  function openPicker() {
+    setPicker(true);
+    setSelected({});
+    setStudentSearch('');
+    api.get<{ data: StudentLite[] }>('/students?limit=200').then((r) => setAllStudents(r.data)).catch(() => undefined);
+  }
+
+  async function enroll() {
+    const studentIds = Object.keys(selected).filter((k) => selected[k]);
+    if (studentIds.length === 0) return;
+    await api.post(`/groups/${id}/enroll`, { studentIds }).catch(() => undefined);
+    setPicker(false);
+    loadGroup();
+  }
+
+  async function removeStudent(studentId: string) {
+    if (!window.confirm('Remove this student from the group?')) return;
+    await api.delete(`/groups/${id}/enroll/${studentId}`).catch(() => undefined);
+    loadGroup();
+  }
 
   async function setTopic(topicId: string, status: string) {
     await api.post(`/curriculum/group/${id}/status`, { topicId, status }).catch(() => undefined);
@@ -115,8 +149,36 @@ export default function GroupDetailPage() {
 
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader><CardTitle>Roster</CardTitle></CardHeader>
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle>Roster ({active.length})</CardTitle>
+            {isAdmin && (
+              <Button variant="outline" size="sm" onClick={picker ? () => setPicker(false) : openPicker}>
+                {picker ? 'Cancel' : 'Add students'}
+              </Button>
+            )}
+          </CardHeader>
           <CardContent>
+            {picker && (
+              <div className="mb-3 rounded-md border border-border p-3">
+                <Input placeholder="Search students…" value={studentSearch} onChange={(e) => setStudentSearch(e.target.value)} className="mb-2" />
+                <div className="max-h-48 overflow-auto">
+                  {allStudents
+                    .filter((s) => !active.some((e) => e.student.id === s.id))
+                    .filter((s) => `${s.firstName} ${s.lastName}`.toLowerCase().includes(studentSearch.toLowerCase()))
+                    .map((s) => (
+                      <label key={s.id} className="flex items-center gap-2 py-1 text-sm">
+                        <input
+                          type="checkbox"
+                          checked={!!selected[s.id]}
+                          onChange={(e) => setSelected({ ...selected, [s.id]: e.target.checked })}
+                        />
+                        {s.firstName} {s.lastName}
+                      </label>
+                    ))}
+                </div>
+                <Button size="sm" className="mt-2" onClick={enroll}>Enroll selected</Button>
+              </div>
+            )}
             {active.length === 0 ? (
               <p className="text-sm text-muted-foreground">No students enrolled.</p>
             ) : (
@@ -126,7 +188,12 @@ export default function GroupDetailPage() {
                     <Link href={`/students/${e.student.id}`} className="font-medium hover:underline">
                       {e.student.firstName} {e.student.lastName}
                     </Link>
-                    <Badge tone={e.student.status === 'ACTIVE' ? 'green' : 'gray'}>{e.student.status}</Badge>
+                    <div className="flex items-center gap-2">
+                      <Badge tone={e.student.status === 'ACTIVE' ? 'green' : 'gray'}>{e.student.status}</Badge>
+                      {isAdmin && (
+                        <button onClick={() => removeStudent(e.student.id)} className="text-muted-foreground hover:text-red-600" title="Remove from group">✕</button>
+                      )}
+                    </div>
                   </li>
                 ))}
               </ul>

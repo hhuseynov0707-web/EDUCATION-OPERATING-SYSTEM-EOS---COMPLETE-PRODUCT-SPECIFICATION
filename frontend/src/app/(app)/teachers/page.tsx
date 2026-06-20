@@ -73,6 +73,16 @@ export default function TeachersPage() {
     }
   }
 
+  async function deleteTeacher(t: TeacherRow) {
+    if (!window.confirm(`Delete teacher ${t.firstName} ${t.lastName}? Their login is disabled and groups are left without a teacher. History is kept.`)) return;
+    try {
+      await api.delete(`/teachers/${t.id}`);
+      load();
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Could not delete teacher.');
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -122,7 +132,10 @@ export default function TeachersPage() {
                 <td className="px-4 py-2 text-muted-foreground">{t.subjectsTaught.join(', ') || '—'}</td>
                 <td className="px-4 py-2 text-muted-foreground">{t._count.groups}</td>
                 <td className="px-4 py-2 text-right">
-                  <Button variant="outline" size="sm" onClick={() => resetPassword(t)}>Reset password</Button>
+                  <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => resetPassword(t)}>Reset password</Button>
+                    <Button variant="destructive" size="sm" onClick={() => deleteTeacher(t)}>Delete</Button>
+                  </div>
                 </td>
               </tr>
             ))}
