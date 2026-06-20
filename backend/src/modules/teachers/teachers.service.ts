@@ -21,6 +21,7 @@ export class TeachersService {
         phone: dto.phone,
         subjectsTaught: dto.subjectsTaught ?? [],
         employmentDate: dto.employmentDate ? new Date(dto.employmentDate) : undefined,
+        salary: dto.salary !== undefined ? new Prisma.Decimal(dto.salary) : undefined,
         user: {
           create: {
             email: dto.email.toLowerCase(),
@@ -90,6 +91,7 @@ export class TeachersService {
       data: {
         ...dto,
         employmentDate: dto.employmentDate ? new Date(dto.employmentDate) : undefined,
+        salary: dto.salary !== undefined ? new Prisma.Decimal(dto.salary) : undefined,
       },
     });
   }

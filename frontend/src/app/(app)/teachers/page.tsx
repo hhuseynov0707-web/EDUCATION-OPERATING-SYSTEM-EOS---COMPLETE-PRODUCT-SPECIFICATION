@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
+import { formatMoney } from '@/lib/utils';
 
 interface TeacherRow {
   id: string;
@@ -12,11 +13,12 @@ interface TeacherRow {
   lastName: string;
   phone: string | null;
   subjectsTaught: string[];
+  salary: string | null;
   user: { email: string; isActive: boolean } | null;
   _count: { groups: number };
 }
 
-const empty = { firstName: '', lastName: '', email: '', password: '', phone: '', subjects: '' };
+const empty = { firstName: '', lastName: '', email: '', password: '', phone: '', subjects: '', salary: '' };
 
 export default function TeachersPage() {
   const [rows, setRows] = useState<TeacherRow[]>([]);
@@ -46,6 +48,7 @@ export default function TeachersPage() {
         password: form.password,
         phone: form.phone || undefined,
         subjectsTaught: form.subjects ? form.subjects.split(',').map((s) => s.trim()).filter(Boolean) : [],
+        salary: form.salary ? Number(form.salary) : undefined,
       });
       setMsg({ ok: true, text: `Teacher created. They log in with ${form.email}.` });
       setForm({ ...empty });
@@ -103,6 +106,7 @@ export default function TeachersPage() {
               <Input type="text" placeholder="Password (min 8 chars)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
               <Input placeholder="Phone (optional)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
               <Input placeholder="Subjects, comma-separated" value={form.subjects} onChange={(e) => setForm({ ...form, subjects: e.target.value })} />
+              <Input type="number" min={0} placeholder="Monthly salary (optional)" value={form.salary} onChange={(e) => setForm({ ...form, salary: e.target.value })} />
               <div className="sm:col-span-2">
                 <Button disabled={saving}>{saving ? 'Saving…' : 'Create teacher'}</Button>
               </div>
@@ -121,6 +125,7 @@ export default function TeachersPage() {
               <th className="px-4 py-2">Login email</th>
               <th className="px-4 py-2">Subjects</th>
               <th className="px-4 py-2">Groups</th>
+              <th className="px-4 py-2">Salary</th>
               <th className="px-4 py-2"></th>
             </tr>
           </thead>
@@ -131,6 +136,7 @@ export default function TeachersPage() {
                 <td className="px-4 py-2 text-muted-foreground">{t.user?.email ?? '—'}</td>
                 <td className="px-4 py-2 text-muted-foreground">{t.subjectsTaught.join(', ') || '—'}</td>
                 <td className="px-4 py-2 text-muted-foreground">{t._count.groups}</td>
+                <td className="px-4 py-2 text-muted-foreground">{t.salary != null ? formatMoney(t.salary) : '—'}</td>
                 <td className="px-4 py-2 text-right">
                   <div className="flex justify-end gap-2">
                     <Button variant="outline" size="sm" onClick={() => resetPassword(t)}>Reset password</Button>
@@ -140,7 +146,7 @@ export default function TeachersPage() {
               </tr>
             ))}
             {rows.length === 0 && (
-              <tr><td colSpan={5} className="px-4 py-6 text-center text-muted-foreground">No teachers yet. Click “Add teacher”.</td></tr>
+              <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">No teachers yet. Click “Add teacher”.</td></tr>
             )}
           </tbody>
         </table>

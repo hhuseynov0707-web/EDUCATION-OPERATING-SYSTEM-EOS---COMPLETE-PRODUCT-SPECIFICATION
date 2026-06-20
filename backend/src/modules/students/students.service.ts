@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { AttendanceStatus, Prisma } from '@prisma/client';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { AttendanceStatus, Prisma, Role } from '@prisma/client';
+import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { CreateStudentDto } from './dto/create-student.dto';
@@ -9,6 +10,10 @@ import { UpdateStudentDto } from './dto/update-student.dto';
 @Injectable()
 export class StudentsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private isAdmin(user?: AuthUser): boolean {
+    return user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
+  }
 
   async create(dto: CreateStudentDto) {
     return this.prisma.student.create({
@@ -25,9 +30,14 @@ export class StudentsService {
     });
   }
 
-  async findAll(query: QueryStudentsDto): Promise<PaginatedResult<unknown>> {
+  async findAll(query: QueryStudentsDto, user: AuthUser): Promise<PaginatedResult<unknown>> {
+    // Teachers only see students enrolled in one of their own groups.
+    const teacherScope: Prisma.StudentWhereInput = this.isAdmin(user)
+      ? {}
+      : { enrollments: { some: { status: 'ACTIVE', group: { teacherId: user.profileId ?? '__none__' } } } };
     const where: Prisma.StudentWhereInput = {
       deletedAt: null,
+      ...teacherScope,
       ...(query.status ? { status: query.status } : {}),
       ...(query.branchId ? { branchId: query.branchId } : {}),
       ...(query.groupId
@@ -66,7 +76,15 @@ export class StudentsService {
     return paginate(data, total, query.page, query.limit);
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user?: AuthUser) {
+    // Teachers may only view a student who is in one of their groups.
+    if (user && !this.isAdmin(user)) {
+      const linked = await this.prisma.groupStudent.findFirst({
+        where: { studentId: id, status: 'ACTIVE', group: { teacherId: user.profileId ?? '__none__' } },
+        select: { id: true },
+      });
+      if (!linked) throw new ForbiddenException('This student is not in your groups');
+    }
     const student = await this.prisma.student.findFirst({
       where: { id, deletedAt: null },
       include: {

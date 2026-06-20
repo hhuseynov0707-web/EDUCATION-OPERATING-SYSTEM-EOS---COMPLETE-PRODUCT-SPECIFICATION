@@ -13,6 +13,7 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { Audit } from '../../common/decorators/audit.decorator';
+import { AuthUser, CurrentUser } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { AuditInterceptor } from '../../common/interceptors/audit.interceptor';
@@ -35,14 +36,14 @@ export class GroupsController {
 
   @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.TEACHER)
   @Get()
-  findAll(@Query() query: PaginationDto) {
-    return this.groups.findAll(query);
+  findAll(@Query() query: PaginationDto, @CurrentUser() user: AuthUser) {
+    return this.groups.findAll(query, user);
   }
 
   @Roles(Role.ADMIN, Role.SUPER_ADMIN, Role.TEACHER)
   @Get(':id')
-  findOne(@Param('id', ParseUUIDPipe) id: string) {
-    return this.groups.findOne(id);
+  findOne(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: AuthUser) {
+    return this.groups.findOne(id, user);
   }
 
   @Roles(Role.ADMIN, Role.SUPER_ADMIN)

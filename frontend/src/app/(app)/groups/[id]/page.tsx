@@ -15,7 +15,7 @@ import { cn, formatDate, formatMoney } from '@/lib/utils';
 interface GroupDetail {
   id: string;
   name: string;
-  monthlyFee: string;
+  monthlyFee?: string | null;
   subject: { id: string; name: string };
   teacher: { firstName: string; lastName: string } | null;
   schedules: { id: string; weekday: string; startTime: string; endTime: string }[];
@@ -106,7 +106,8 @@ export default function GroupDetailPage() {
         <div>
           <h1 className="text-2xl font-semibold">{group.name}</h1>
           <p className="text-sm text-muted-foreground">
-            {group.subject.name} · {group.teacher ? `${group.teacher.firstName} ${group.teacher.lastName}` : 'No teacher'} · {formatMoney(group.monthlyFee)}/mo
+            {group.subject.name} · {group.teacher ? `${group.teacher.firstName} ${group.teacher.lastName}` : 'No teacher'}
+            {group.monthlyFee != null && ` · ${formatMoney(group.monthlyFee)}/mo`}
           </p>
         </div>
         <Link href={`/attendance?group=${group.id}`}>

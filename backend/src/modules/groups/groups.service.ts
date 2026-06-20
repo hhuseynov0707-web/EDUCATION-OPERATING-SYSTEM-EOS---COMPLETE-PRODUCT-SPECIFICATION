@@ -1,5 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, Role } from '@prisma/client';
+import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, PaginationDto, paginate } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
 import {
@@ -8,9 +9,19 @@ import {
   UpdateGroupDto,
 } from './dto/group.dto';
 
+/** Remove financial fields (monthlyFee) from a group object for non-admins. */
+function stripMoney<T extends { monthlyFee?: unknown }>(group: T): T {
+  const { monthlyFee, ...rest } = group;
+  return rest as T;
+}
+
 @Injectable()
 export class GroupsService {
   constructor(private readonly prisma: PrismaService) {}
+
+  private isAdmin(user?: AuthUser): boolean {
+    return user?.role === Role.ADMIN || user?.role === Role.SUPER_ADMIN;
+  }
 
   async create(dto: CreateGroupDto) {
     return this.prisma.group.create({
@@ -28,9 +39,11 @@ export class GroupsService {
     });
   }
 
-  async findAll(query: PaginationDto): Promise<PaginatedResult<unknown>> {
+  async findAll(query: PaginationDto, user: AuthUser): Promise<PaginatedResult<unknown>> {
+    const teacherScope = !this.isAdmin(user); // teachers only see their groups
     const where: Prisma.GroupWhereInput = {
       deletedAt: null,
+      ...(teacherScope ? { teacherId: user.profileId ?? '__none__' } : {}),
       ...(query.search ? { name: { contains: query.search, mode: 'insensitive' } } : {}),
     };
     const [data, total] = await this.prisma.$transaction([
@@ -48,10 +61,11 @@ export class GroupsService {
       }),
       this.prisma.group.count({ where }),
     ]);
-    return paginate(data, total, query.page, query.limit);
+    const shaped = teacherScope ? data.map(stripMoney) : data;
+    return paginate(shaped, total, query.page, query.limit);
   }
 
-  async findOne(id: string) {
+  async findOne(id: string, user: AuthUser) {
     const group = await this.prisma.group.findFirst({
       where: { id, deletedAt: null },
       include: {
@@ -68,8 +82,14 @@ export class GroupsService {
     });
     if (!group) throw new NotFoundException('Group not found');
 
+    // Teachers may only open their own groups, and never see fees.
+    if (!this.isAdmin(user) && group.teacherId !== (user.profileId ?? null)) {
+      throw new ForbiddenException('You are not assigned to this group');
+    }
+
     const coverage = await this.curriculumCoverage(id);
-    return { ...group, curriculumCoverage: coverage };
+    const shaped = this.isAdmin(user) ? group : stripMoney(group);
+    return { ...shaped, curriculumCoverage: coverage };
   }
 
   async update(id: string, dto: UpdateGroupDto) {

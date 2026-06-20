@@ -127,6 +127,8 @@ model User {
   refreshTokens RefreshToken[]
   auditLogs     AuditLog[]     @relation("AuditActor")
   notesAuthored TeacherNote[]  @relation("NoteAuthor")
+  sentMessages     Message[]   @relation("MsgSender")
+  receivedMessages Message[]   @relation("MsgRecipient")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -216,6 +218,8 @@ model Teacher {
   phone          String?
   subjectsTaught String[]  // free-form subject labels for quick display
   employmentDate DateTime?
+  // Monthly salary — financial data, only ever exposed to admins.
+  salary         Decimal?  @db.Decimal(10, 2)
 
   groups Group[]
   notes  TeacherNote[] @relation("NoteTeacher")
@@ -250,6 +254,7 @@ model Student {
   notes        TeacherNote[]
   riskFlags    RiskFlag[]
   parentLinks  StudentParent[]
+  messages     Message[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -590,4 +595,28 @@ model AuditLog {
   @@index([action])
   @@index([createdAt])
   @@map("audit_logs")
+}
+
+// ─────────────────────────────── MESSAGING ───────────────────────────────
+
+/// Local (in-app) direct message between two users, optionally about a student.
+/// Used for teacher↔parent communication; admins can read every message.
+model Message {
+  id          String    @id @default(uuid()) @db.Uuid
+  senderId    String    @db.Uuid
+  sender      User      @relation("MsgSender", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId String    @db.Uuid
+  recipient   User      @relation("MsgRecipient", fields: [recipientId], references: [id], onDelete: Cascade)
+  studentId   String?   @db.Uuid
+  student     Student?  @relation(fields: [studentId], references: [id], onDelete: SetNull)
+  body        String
+  readAt      DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([senderId])
+  @@index([recipientId])
+  @@index([studentId])
+  @@index([createdAt])
+  @@map("messages")
 }

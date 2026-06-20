@@ -13,7 +13,7 @@ import { formatMoney } from '@/lib/utils';
 interface GroupRow {
   id: string;
   name: string;
-  monthlyFee: string;
+  monthlyFee?: string | null;
   subject: { name: string };
   teacher: { firstName: string; lastName: string } | null;
   schedules: { weekday: string; startTime: string; endTime: string }[];
@@ -160,7 +160,7 @@ export default function GroupsPage() {
                   <h3 className="font-semibold">{g.name}</h3>
                   <p className="text-sm text-muted-foreground">{g.subject.name}</p>
                 </Link>
-                <span className="text-sm font-medium">{formatMoney(g.monthlyFee)}/mo</span>
+                {g.monthlyFee != null && <span className="text-sm font-medium">{formatMoney(g.monthlyFee)}/mo</span>}
               </div>
               <div className="mt-3 space-y-1 text-sm text-muted-foreground">
                 <div>{g.teacher ? `${g.teacher.firstName} ${g.teacher.lastName}` : 'No teacher assigned'}</div>
