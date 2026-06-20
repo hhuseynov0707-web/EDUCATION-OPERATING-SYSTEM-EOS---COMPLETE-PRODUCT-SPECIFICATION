@@ -3,9 +3,11 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
-import { Card } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
+import { useAuth } from '@/lib/auth';
 
 interface StudentRow {
   id: string;
@@ -35,9 +37,16 @@ const riskTone: Record<string, 'green' | 'amber' | 'red' | 'gray'> = {
 };
 
 export default function StudentsPage() {
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<Paged | null>(null);
+
+  const [open, setOpen] = useState(false);
+  const [form, setForm] = useState({ firstName: '', lastName: '', phone: '' });
+  const [saving, setSaving] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
 
   const load = useCallback(() => {
     const params = new URLSearchParams({ page: String(page), limit: '15' });
@@ -50,12 +59,57 @@ export default function StudentsPage() {
     return () => clearTimeout(t);
   }, [load]);
 
+  async function createStudent(e: React.FormEvent) {
+    e.preventDefault();
+    setSaving(true);
+    setMsg(null);
+    try {
+      await api.post('/students', {
+        firstName: form.firstName,
+        lastName: form.lastName,
+        phone: form.phone || undefined,
+      });
+      setForm({ firstName: '', lastName: '', phone: '' });
+      setOpen(false);
+      load();
+    } catch (err) {
+      setMsg(err instanceof Error ? err.message : 'Could not add student.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Students</h1>
-        {result && <span className="text-sm text-muted-foreground">{result.meta.total} total</span>}
+        <div className="flex items-center gap-3">
+          {result && <span className="text-sm text-muted-foreground">{result.meta.total} total</span>}
+          {isAdmin && (
+            <Button variant={open ? 'outline' : 'default'} onClick={() => { setOpen((o) => !o); setMsg(null); }}>
+              {open ? 'Cancel' : 'New student'}
+            </Button>
+          )}
+        </div>
       </div>
+
+      {open && isAdmin && (
+        <Card>
+          <CardHeader><CardTitle>Add student</CardTitle></CardHeader>
+          <CardContent>
+            <form onSubmit={createStudent} className="grid gap-3 sm:grid-cols-3">
+              <Input placeholder="First name" value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} required />
+              <Input placeholder="Last name" value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} required />
+              <Input placeholder="Phone (optional)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <div className="sm:col-span-3">
+                <Button disabled={saving}>{saving ? 'Saving…' : 'Add student'}</Button>
+                {msg && <span className="ml-3 text-sm text-red-600">{msg}</span>}
+              </div>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
       <Input
         placeholder="Search by name or phone…"
         value={search}

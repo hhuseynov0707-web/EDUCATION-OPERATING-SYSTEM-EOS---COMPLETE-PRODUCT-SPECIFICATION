@@ -8,23 +8,28 @@ import {
   LayoutDashboard,
   Layers,
   LogOut,
+  Settings,
   ShieldAlert,
+  UserCog,
   Users,
 } from 'lucide-react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '@/lib/auth';
+import { APP_NAME } from '@/lib/brand';
 import { cn } from '@/lib/utils';
 
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
   { href: '/students', label: 'Students', icon: Users, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
+  { href: '/teachers', label: 'Teachers', icon: UserCog, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/groups', label: 'Groups', icon: Layers, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
   { href: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
   { href: '/exams', label: 'Exams', icon: GraduationCap, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
   { href: '/payments', label: 'Payments', icon: CreditCard, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/risk', label: 'At-Risk', icon: ShieldAlert, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/audit', label: 'Audit Log', icon: FileText, roles: ['SUPER_ADMIN', 'ADMIN'] },
+  { href: '/settings', label: 'Settings', icon: Settings, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
 ];
 
 export function Sidebar() {
@@ -35,7 +40,7 @@ export function Sidebar() {
   return (
     <aside className="flex h-screen w-60 flex-col border-r border-border bg-white">
       <div className="px-5 py-5">
-        <h1 className="text-lg font-semibold tracking-tight">EOS</h1>
+        <h1 className="text-lg font-semibold tracking-tight">{APP_NAME}</h1>
         <p className="text-xs text-muted-foreground">Education OS</p>
       </div>
       <nav className="flex-1 space-y-1 px-3">

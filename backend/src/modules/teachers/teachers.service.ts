@@ -168,6 +168,25 @@ export class TeachersService {
     };
   }
 
+  /** Admin sets a new login password for a teacher. */
+  async resetPassword(id: string, newPassword: string) {
+    const teacher = await this.prisma.teacher.findFirst({
+      where: { id, deletedAt: null },
+      select: { userId: true },
+    });
+    if (!teacher) throw new NotFoundException('Teacher not found');
+    await this.prisma.user.update({
+      where: { id: teacher.userId },
+      data: { passwordHash: await AuthService.hashPassword(newPassword) },
+    });
+    // Force re-login everywhere by revoking existing refresh tokens.
+    await this.prisma.refreshToken.updateMany({
+      where: { userId: teacher.userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { success: true };
+  }
+
   private async ensureExists(id: string) {
     const exists = await this.prisma.teacher.findFirst({
       where: { id, deletedAt: null },

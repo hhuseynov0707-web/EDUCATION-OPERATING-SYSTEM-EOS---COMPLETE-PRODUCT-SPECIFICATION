@@ -17,6 +17,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { AuditInterceptor } from '../../common/interceptors/audit.interceptor';
 import { CreateTeacherDto } from './dto/create-teacher.dto';
+import { ResetTeacherPasswordDto } from './dto/reset-password.dto';
 import { UpdateTeacherDto } from './dto/update-teacher.dto';
 import { TeachersService } from './teachers.service';
 
@@ -54,5 +55,14 @@ export class TeachersController {
   @Delete(':id')
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.teachers.remove(id);
+  }
+
+  @Audit({ action: 'UPDATE', entity: 'Teacher' })
+  @Post(':id/reset-password')
+  resetPassword(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ResetTeacherPasswordDto,
+  ) {
+    return this.teachers.resetPassword(id, dto.newPassword);
   }
 }

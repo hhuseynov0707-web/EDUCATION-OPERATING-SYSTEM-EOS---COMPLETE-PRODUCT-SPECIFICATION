@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { useAuth } from '@/lib/auth';
+import { APP_NAME } from '@/lib/brand';
 
 export default function LoginPage() {
   const { login } = useAuth();
@@ -31,7 +32,7 @@ export default function LoginPage() {
       <Card className="w-full max-w-sm">
         <CardContent className="pt-6">
           <div className="mb-6 text-center">
-            <h1 className="text-2xl font-semibold tracking-tight">EOS</h1>
+            <h1 className="text-2xl font-semibold tracking-tight">{APP_NAME}</h1>
             <p className="text-sm text-muted-foreground">Education Operating System</p>
           </div>
           <form onSubmit={onSubmit} className="space-y-3">
