@@ -1,8 +1,14 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { AttendanceStatus, Prisma, Role } from '@prisma/client';
 import { AuthUser } from '../../common/decorators/current-user.decorator';
 import { PaginatedResult, paginate } from '../../common/dto/pagination.dto';
 import { PrismaService } from '../../prisma/prisma.service';
+import { AuthService } from '../auth/auth.service';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { QueryStudentsDto } from './dto/query-students.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
@@ -89,6 +95,7 @@ export class StudentsService {
       where: { id, deletedAt: null },
       include: {
         branch: { select: { id: true, name: true } },
+        user: { select: { email: true } },
         enrollments: {
           include: {
             group: { select: { id: true, name: true, subject: { select: { name: true } } } },
@@ -124,6 +131,67 @@ export class StudentsService {
       where: { id },
       data: { deletedAt: new Date(), status: 'LEFT' },
     });
+  }
+
+  // ── Student login accounts ──────────────────────────────────────────────
+
+  /** Admin: give a student a login (creates the User and links it). */
+  async createAccount(studentId: string, email: string, password: string) {
+    const student = await this.prisma.student.findFirst({
+      where: { id: studentId, deletedAt: null },
+      select: { id: true, userId: true },
+    });
+    if (!student) throw new NotFoundException('Student not found');
+    if (student.userId) throw new ConflictException('This student already has a login');
+
+    const passwordHash = await AuthService.hashPassword(password);
+    await this.prisma.student.update({
+      where: { id: studentId },
+      data: { user: { create: { email: email.toLowerCase(), passwordHash, role: Role.STUDENT } } },
+    });
+    return { success: true, email: email.toLowerCase() };
+  }
+
+  /** Admin: reset a student's login password. */
+  async resetAccountPassword(studentId: string, newPassword: string) {
+    const student = await this.prisma.student.findFirst({
+      where: { id: studentId, deletedAt: null },
+      select: { userId: true },
+    });
+    if (!student?.userId) throw new NotFoundException('Student has no login account');
+    await this.prisma.user.update({
+      where: { id: student.userId },
+      data: { passwordHash: await AuthService.hashPassword(newPassword) },
+    });
+    await this.prisma.refreshToken.updateMany({
+      where: { userId: student.userId, revokedAt: null },
+      data: { revokedAt: new Date() },
+    });
+    return { success: true };
+  }
+
+  /** Student portal: the logged-in student's own read-only view. */
+  async selfView(studentId: string) {
+    const student = await this.prisma.student.findFirst({
+      where: { id: studentId, deletedAt: null },
+      include: {
+        enrollments: {
+          where: { status: 'ACTIVE' },
+          include: { group: { select: { id: true, name: true, subject: { select: { name: true } } } } },
+        },
+      },
+    });
+    if (!student) throw new NotFoundException('Student not found');
+
+    const [analytics, notes] = await Promise.all([
+      this.computeAnalytics(studentId),
+      this.prisma.teacherNote.findMany({
+        where: { studentId, deletedAt: null },
+        orderBy: { createdAt: 'desc' },
+        include: { teacher: { select: { firstName: true, lastName: true } } },
+      }),
+    ]);
+    return { student, analytics, notes };
   }
 
   /** Per-student rollups used by the profile screen and risk engine. */

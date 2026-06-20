@@ -18,6 +18,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { AuditInterceptor } from '../../common/interceptors/audit.interceptor';
 import { CreateStudentDto } from './dto/create-student.dto';
 import { QueryStudentsDto } from './dto/query-students.dto';
+import { CreateStudentAccountDto, ResetStudentPasswordDto } from './dto/student-account.dto';
 import { UpdateStudentDto } from './dto/update-student.dto';
 import { StudentsService } from './students.service';
 
@@ -59,5 +60,22 @@ export class StudentsController {
   @Delete(':id')
   remove(@Param('id', ParseUUIDPipe) id: string) {
     return this.students.remove(id);
+  }
+
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @Audit({ action: 'CREATE', entity: 'StudentAccount' })
+  @Post(':id/account')
+  createAccount(@Param('id', ParseUUIDPipe) id: string, @Body() dto: CreateStudentAccountDto) {
+    return this.students.createAccount(id, dto.email, dto.password);
+  }
+
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @Audit({ action: 'UPDATE', entity: 'StudentAccount' })
+  @Post(':id/reset-password')
+  resetAccountPassword(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() dto: ResetStudentPasswordDto,
+  ) {
+    return this.students.resetAccountPassword(id, dto.newPassword);
   }
 }

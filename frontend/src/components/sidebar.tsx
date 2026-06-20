@@ -24,6 +24,7 @@ import { cn } from '@/lib/utils';
 const NAV = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
   { href: '/parent', label: 'My Children', icon: Users, roles: ['PARENT'] },
+  { href: '/student', label: 'My Progress', icon: GraduationCap, roles: ['STUDENT'] },
   { href: '/students', label: 'Students', icon: Users, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
   { href: '/teachers', label: 'Teachers', icon: UserCog, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/parents', label: 'Parents', icon: Contact, roles: ['SUPER_ADMIN', 'ADMIN'] },
@@ -34,7 +35,7 @@ const NAV = [
   { href: '/payments', label: 'Payments', icon: CreditCard, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/risk', label: 'At-Risk', icon: ShieldAlert, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/audit', label: 'Audit Log', icon: FileText, roles: ['SUPER_ADMIN', 'ADMIN'] },
-  { href: '/settings', label: 'Settings', icon: Settings, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER', 'PARENT'] },
+  { href: '/settings', label: 'Settings', icon: Settings, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER', 'PARENT', 'STUDENT'] },
 ];
 
 export function Sidebar() {

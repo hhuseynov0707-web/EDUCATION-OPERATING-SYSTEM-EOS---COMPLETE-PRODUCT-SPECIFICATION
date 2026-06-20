@@ -41,7 +41,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   async function login(email: string, password: string) {
     const u = await api.login(email, password);
     setUser(u);
-    router.push(u.role === 'PARENT' ? '/parent' : '/dashboard');
+    router.push(u.role === 'PARENT' ? '/parent' : u.role === 'STUDENT' ? '/student' : '/dashboard');
   }
 
   function logout() {

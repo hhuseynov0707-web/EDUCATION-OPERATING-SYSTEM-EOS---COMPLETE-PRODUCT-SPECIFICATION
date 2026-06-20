@@ -51,6 +51,10 @@ export default function DashboardPage() {
       router.replace('/parent');
       return;
     }
+    if (user?.role === 'STUDENT') {
+      router.replace('/student');
+      return;
+    }
     if (isAdmin) api.get<AdminDash>('/dashboard/admin').then(setAdmin).catch(() => undefined);
     else if (user?.role === 'TEACHER') api.get<TeacherDash>('/dashboard/teacher').then(setTeacher).catch(() => undefined);
   }, [isAdmin, user, router]);

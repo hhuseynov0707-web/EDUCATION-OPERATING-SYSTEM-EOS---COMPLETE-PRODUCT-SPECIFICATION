@@ -27,6 +27,7 @@ interface StudentDetail {
   dateOfBirth: string | null;
   enrollmentDate: string;
   branch: { name: string } | null;
+  user: { email: string } | null;
   enrollments: { status: string; group: { id: string; name: string; subject: { name: string } } }[];
   parentLinks: { relationship: string | null; parent: { firstName: string; lastName: string; phone: string | null } }[];
   riskFlags: { level: string; score: number; reasons: { message: string }[] }[];
@@ -108,6 +109,33 @@ export default function StudentProfilePage() {
     });
   }
 
+  async function createLogin() {
+    const email = window.prompt("Student's login email:");
+    if (!email) return;
+    const password = window.prompt('Temporary password (min 8 chars):');
+    if (!password) return;
+    if (password.length < 8) { alert('Password must be at least 8 characters.'); return; }
+    try {
+      await api.post(`/students/${id}/account`, { email, password });
+      alert(`Login created. The student signs in with ${email}.`);
+      loadStudent();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not create login.');
+    }
+  }
+
+  async function resetLogin() {
+    const np = window.prompt('New password for this student (min 8 chars):');
+    if (!np) return;
+    if (np.length < 8) { alert('Password must be at least 8 characters.'); return; }
+    try {
+      await api.post(`/students/${id}/reset-password`, { newPassword: np });
+      alert('Password updated. Share it with the student.');
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not reset password.');
+    }
+  }
+
   async function saveEdit() {
     setSavingEdit(true);
     try {
@@ -158,11 +186,22 @@ export default function StudentProfilePage() {
         <Badge tone={statusTone[student.status] ?? 'gray'}>{student.status}</Badge>
         {risk && risk.score > 0 && <Badge tone={riskTone[risk.level]}>RISK: {risk.level} ({risk.score})</Badge>}
         {isAdmin && (
-          <Button variant="outline" size="sm" className="ml-auto" onClick={editing ? () => setEditing(false) : openEdit}>
-            {editing ? 'Cancel' : 'Edit'}
-          </Button>
+          <div className="ml-auto flex gap-2">
+            {student.user ? (
+              <Button variant="outline" size="sm" onClick={resetLogin}>Reset login password</Button>
+            ) : (
+              <Button variant="outline" size="sm" onClick={createLogin}>Create login</Button>
+            )}
+            <Button variant="outline" size="sm" onClick={editing ? () => setEditing(false) : openEdit}>
+              {editing ? 'Cancel' : 'Edit'}
+            </Button>
+          </div>
         )}
       </div>
+
+      {isAdmin && student.user && (
+        <p className="text-sm text-muted-foreground">Student login: <span className="font-medium">{student.user.email}</span></p>
+      )}
 
       {editing && isAdmin && (
         <Card>
