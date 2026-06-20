@@ -1,0 +1,30 @@
+# Render.com blueprint — free-tier deploy of the EOS backend.
+# Database: provision separately on Neon (free) and paste its pooled URL into
+# DATABASE_URL and the direct URL into DIRECT_URL below (as secrets).
+services:
+  - type: web
+    name: eos-backend
+    runtime: docker
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /api/v1/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: BACKEND_PORT
+        value: '4000'
+      - key: DATABASE_URL
+        sync: false
+      - key: DIRECT_URL
+        sync: false
+      - key: JWT_ACCESS_SECRET
+        generateValue: true
+      - key: JWT_REFRESH_SECRET
+        generateValue: true
+      - key: JWT_ACCESS_TTL
+        value: 15m
+      - key: JWT_REFRESH_TTL
+        value: 7d
+      - key: CORS_ORIGINS
+        sync: false

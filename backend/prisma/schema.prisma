@@ -1,0 +1,593 @@
+// ──────────────────────────────────────────────────────────────────────────
+//  EOS — Education Operating System
+//  PostgreSQL schema (Prisma).
+//
+//  Design principles:
+//   - Fully normalized (3NF) with explicit join tables for M:N relations.
+//   - Soft delete via `deletedAt` on long-lived domain entities.
+//   - `createdAt` / `updatedAt` on every table for audit & sync.
+//   - Indexes on every foreign key and on common filter/search columns.
+//   - Enums for all closed status sets (DB-level integrity).
+//   - All money stored as Decimal(10,2) — never float.
+// ──────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  // Pooled connection (Neon pgBouncer) used by the app at runtime.
+  url      = env("DATABASE_URL")
+  // Direct connection used by `prisma migrate` (Neon recommends this).
+  // For local Docker dev both point at the same Postgres instance.
+  directUrl = env("DIRECT_URL")
+}
+
+// ─────────────────────────────── ENUMS ───────────────────────────────────
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  TEACHER
+  PARENT
+  STUDENT
+}
+
+enum StudentStatus {
+  ACTIVE
+  FROZEN
+  GRADUATED
+  LEFT
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  PAUSED
+  COMPLETED
+  DROPPED
+}
+
+enum GroupStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum Weekday {
+  MON
+  TUE
+  WED
+  THU
+  FRI
+  SAT
+  SUN
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+enum PaymentStatus {
+  PAID
+  PARTIAL
+  PENDING
+  OVERDUE
+}
+
+enum NoteType {
+  LESSON
+  PROGRESS
+  STRENGTH
+  WEAKNESS
+  GENERAL
+}
+
+enum TopicStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  EXPORT
+}
+
+// ─────────────────────────────── IDENTITY ────────────────────────────────
+
+/// Authentication principal. Every human who can log in has exactly one User.
+/// Domain profiles (Teacher / Student / Parent) link back to a User 1:1.
+model User {
+  id           String    @id @default(uuid()) @db.Uuid
+  email        String    @unique
+  passwordHash String
+  role         Role
+  isActive     Boolean   @default(true)
+  lastLoginAt  DateTime?
+
+  // Optional domain profiles (a user is at most one of these).
+  teacher Teacher?
+  student Student?
+  parent  Parent?
+
+  refreshTokens RefreshToken[]
+  auditLogs     AuditLog[]     @relation("AuditActor")
+  notesAuthored TeacherNote[]  @relation("NoteAuthor")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([role])
+  @@index([isActive])
+  @@map("users")
+}
+
+/// Hashed, rotating refresh tokens (one row per active session/device).
+model RefreshToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String   @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  userAgent String?
+  ip        String?
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("refresh_tokens")
+}
+
+// ─────────────────────────────── ORG ─────────────────────────────────────
+
+/// Physical or logical branch of the academy. Single-branch installs use one.
+model Branch {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String
+  address   String?
+  phone     String?
+  isActive  Boolean   @default(true)
+  students  Student[]
+  groups    Group[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("branches")
+}
+
+/// A program of study (e.g. SAT, AP, IB, Foundation Math).
+model Program {
+  id        String    @id @default(uuid()) @db.Uuid
+  name      String    @unique
+  code      String?   @unique
+  subjects  Subject[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("programs")
+}
+
+/// A subject taught within a program (e.g. "SAT Math", "AP Physics").
+model Subject {
+  id        String  @id @default(uuid()) @db.Uuid
+  name      String
+  programId String? @db.Uuid
+  program   Program? @relation(fields: [programId], references: [id], onDelete: SetNull)
+
+  groups Group[]
+  exams  Exam[]
+  topics CurriculumTopic[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([name, programId])
+  @@index([programId])
+  @@map("subjects")
+}
+
+// ─────────────────────────────── PEOPLE ──────────────────────────────────
+
+model Teacher {
+  id             String    @id @default(uuid()) @db.Uuid
+  userId         String    @unique @db.Uuid
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName      String
+  lastName       String
+  phone          String?
+  subjectsTaught String[]  // free-form subject labels for quick display
+  employmentDate DateTime?
+
+  groups Group[]
+  notes  TeacherNote[] @relation("NoteTeacher")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([lastName])
+  @@map("teachers")
+}
+
+model Student {
+  id             String        @id @default(uuid()) @db.Uuid
+  userId         String?       @unique @db.Uuid // optional light student portal
+  user           User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  firstName      String
+  lastName       String
+  dateOfBirth    DateTime?
+  phone          String?
+  email          String?
+  status         StudentStatus @default(ACTIVE)
+  enrollmentDate DateTime      @default(now())
+
+  branchId String? @db.Uuid
+  branch   Branch? @relation(fields: [branchId], references: [id], onDelete: SetNull)
+
+  enrollments  GroupStudent[]
+  attendance   Attendance[]
+  payments     Payment[]
+  examResults  ExamResult[]
+  notes        TeacherNote[]
+  riskFlags    RiskFlag[]
+  parentLinks  StudentParent[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([status])
+  @@index([lastName])
+  @@index([branchId])
+  @@index([enrollmentDate])
+  @@map("students")
+}
+
+model Parent {
+  id        String  @id @default(uuid()) @db.Uuid
+  userId    String  @unique @db.Uuid
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  firstName String
+  lastName  String
+  phone     String?
+
+  children StudentParent[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@map("parents")
+}
+
+/// M:N link between parents and students, with relationship label.
+model StudentParent {
+  studentId    String  @db.Uuid
+  parentId     String  @db.Uuid
+  relationship String? // e.g. "mother", "father", "guardian"
+  student      Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  parent       Parent  @relation(fields: [parentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@id([studentId, parentId])
+  @@index([parentId])
+  @@map("student_parents")
+}
+
+// ─────────────────────────────── GROUPS ──────────────────────────────────
+
+model Group {
+  id         String      @id @default(uuid()) @db.Uuid
+  name       String
+  subjectId  String      @db.Uuid
+  subject    Subject     @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  teacherId  String?     @db.Uuid
+  teacher    Teacher?    @relation(fields: [teacherId], references: [id], onDelete: SetNull)
+  branchId   String?     @db.Uuid
+  branch     Branch?     @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  monthlyFee Decimal     @default(0) @db.Decimal(10, 2)
+  status     GroupStatus @default(ACTIVE)
+
+  schedules          GroupSchedule[]
+  enrollments        GroupStudent[]
+  lessons            Lesson[]
+  payments           Payment[]
+  exams              Exam[]
+  curriculumProgress CurriculumProgress[]
+  notes              TeacherNote[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([subjectId])
+  @@index([teacherId])
+  @@index([branchId])
+  @@index([status])
+  @@map("groups")
+}
+
+/// Recurring weekly schedule slot for a group.
+model GroupSchedule {
+  id        String  @id @default(uuid()) @db.Uuid
+  groupId   String  @db.Uuid
+  group     Group   @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  weekday   Weekday
+  startTime String  // "HH:mm" local time
+  endTime   String  // "HH:mm" local time
+
+  createdAt DateTime @default(now())
+
+  @@unique([groupId, weekday, startTime])
+  @@index([groupId])
+  @@map("group_schedules")
+}
+
+/// Enrollment of a student into a group (M:N with lifecycle).
+model GroupStudent {
+  id       String           @id @default(uuid()) @db.Uuid
+  groupId  String           @db.Uuid
+  studentId String          @db.Uuid
+  group    Group            @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  student  Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status   EnrollmentStatus @default(ACTIVE)
+  joinedAt DateTime         @default(now())
+  leftAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([groupId, studentId])
+  @@index([studentId])
+  @@index([status])
+  @@map("group_students")
+}
+
+// ─────────────────────────────── LESSONS / ATTENDANCE ────────────────────
+
+/// A concrete lesson occurrence for a group on a given date.
+model Lesson {
+  id        String   @id @default(uuid()) @db.Uuid
+  groupId   String   @db.Uuid
+  group     Group    @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  date      DateTime @db.Date
+  topic     String?
+  notes     String?
+
+  attendance Attendance[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([groupId, date])
+  @@index([groupId])
+  @@index([date])
+  @@map("lessons")
+}
+
+model Attendance {
+  id         String           @id @default(uuid()) @db.Uuid
+  lessonId   String           @db.Uuid
+  lesson     Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  studentId  String           @db.Uuid
+  student    Student          @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  status     AttendanceStatus
+  markedById String?          @db.Uuid // User who recorded it
+  note       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([lessonId, studentId])
+  @@index([studentId])
+  @@index([status])
+  @@map("attendance")
+}
+
+// ─────────────────────────────── PAYMENTS ────────────────────────────────
+
+/// One monthly invoice/payment record for a student (optionally per group).
+model Payment {
+  id         String        @id @default(uuid()) @db.Uuid
+  studentId  String        @db.Uuid
+  student    Student       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  groupId    String?       @db.Uuid
+  group      Group?        @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  periodYear  Int          // e.g. 2026
+  periodMonth Int          // 1..12
+  amountDue   Decimal      @db.Decimal(10, 2)
+  discount    Decimal      @default(0) @db.Decimal(10, 2)
+  amountPaid  Decimal      @default(0) @db.Decimal(10, 2)
+  dueDate     DateTime     @db.Date
+  paidAt      DateTime?
+  status      PaymentStatus @default(PENDING)
+  note        String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([studentId, groupId, periodYear, periodMonth])
+  @@index([studentId])
+  @@index([status])
+  @@index([dueDate])
+  @@index([periodYear, periodMonth])
+  @@map("payments")
+}
+
+// ─────────────────────────────── EXAMS ───────────────────────────────────
+
+model Exam {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  subjectId String   @db.Uuid
+  subject   Subject  @relation(fields: [subjectId], references: [id], onDelete: Restrict)
+  groupId   String?  @db.Uuid
+  group     Group?   @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  date      DateTime @db.Date
+  maxScore  Decimal  @db.Decimal(7, 2)
+
+  results ExamResult[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([subjectId])
+  @@index([groupId])
+  @@index([date])
+  @@map("exams")
+}
+
+model ExamResult {
+  id        String  @id @default(uuid()) @db.Uuid
+  examId    String  @db.Uuid
+  exam      Exam    @relation(fields: [examId], references: [id], onDelete: Cascade)
+  studentId String  @db.Uuid
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  score     Decimal @db.Decimal(7, 2)
+  note      String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([examId, studentId])
+  @@index([studentId])
+  @@map("exam_results")
+}
+
+// ─────────────────────────────── NOTES ───────────────────────────────────
+
+/// Chronological academic notes about a student authored by a teacher.
+model TeacherNote {
+  id        String   @id @default(uuid()) @db.Uuid
+  studentId String   @db.Uuid
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  teacherId String?  @db.Uuid
+  teacher   Teacher? @relation("NoteTeacher", fields: [teacherId], references: [id], onDelete: SetNull)
+  authorId  String?  @db.Uuid
+  author    User?    @relation("NoteAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+  groupId   String?  @db.Uuid
+  group     Group?   @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  type      NoteType @default(GENERAL)
+  content   String
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([studentId])
+  @@index([teacherId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("teacher_notes")
+}
+
+// ─────────────────────────────── CURRICULUM ──────────────────────────────
+
+/// A curriculum topic belonging to a subject (ordered syllabus item).
+model CurriculumTopic {
+  id        String  @id @default(uuid()) @db.Uuid
+  subjectId String  @db.Uuid
+  subject   Subject @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  name      String
+  orderIndex Int    @default(0)
+
+  progress CurriculumProgress[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@unique([subjectId, name])
+  @@index([subjectId])
+  @@map("curriculum_topics")
+}
+
+/// Per-group completion status of a curriculum topic.
+model CurriculumProgress {
+  id            String          @id @default(uuid()) @db.Uuid
+  groupId       String          @db.Uuid
+  group         Group           @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  topicId       String          @db.Uuid
+  topic         CurriculumTopic @relation(fields: [topicId], references: [id], onDelete: Cascade)
+  status        TopicStatus     @default(NOT_STARTED)
+  completedAt   DateTime?
+  completedById String?         @db.Uuid
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([groupId, topicId])
+  @@index([groupId])
+  @@index([status])
+  @@map("curriculum_progress")
+}
+
+// ─────────────────────────────── RISK ────────────────────────────────────
+
+/// A computed risk flag for a student (one current row per student kept fresh
+/// by the risk engine; historical rows retained for trend analysis).
+model RiskFlag {
+  id         String    @id @default(uuid()) @db.Uuid
+  studentId  String    @db.Uuid
+  student    Student   @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  level      RiskLevel
+  score      Int       @default(0) // 0..100 composite risk score
+  reasons    Json      // [{ code, message, value }]
+  isCurrent  Boolean   @default(true)
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([studentId])
+  @@index([level])
+  @@index([isCurrent])
+  @@map("risk_flags")
+}
+
+// ─────────────────────────────── AUDIT ───────────────────────────────────
+
+/// Immutable audit trail. Append-only — never updated or deleted in app code.
+model AuditLog {
+  id          String      @id @default(uuid()) @db.Uuid
+  actorUserId String?     @db.Uuid
+  actor       User?       @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+  action      AuditAction
+  entity      String      // e.g. "Student", "Payment"
+  entityId    String?
+  oldValue    Json?
+  newValue    Json?
+  ip          String?
+  userAgent   String?
+
+  createdAt DateTime @default(now())
+
+  @@index([actorUserId])
+  @@index([entity, entityId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
