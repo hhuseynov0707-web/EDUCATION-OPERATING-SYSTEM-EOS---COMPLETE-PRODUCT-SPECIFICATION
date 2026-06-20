@@ -8,7 +8,9 @@ import { HttpExceptionFilter } from './common/filters/http-exception.filter';
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, { bufferLogs: false });
 
-  const port = Number(process.env.BACKEND_PORT ?? 4000);
+  // Cloud hosts (Render, Railway, etc.) inject the port via PORT; fall back to
+  // BACKEND_PORT for local dev, then a sane default.
+  const port = Number(process.env.PORT ?? process.env.BACKEND_PORT ?? 4000);
   const corsOrigins = (process.env.CORS_ORIGINS ?? 'http://localhost:3000')
     .split(',')
     .map((o) => o.trim());
