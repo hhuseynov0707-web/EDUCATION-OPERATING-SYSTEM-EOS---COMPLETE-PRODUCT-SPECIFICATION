@@ -8,16 +8,19 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Select } from '@/components/ui/select';
 import { api } from '@/lib/api';
 import { useAuth } from '@/lib/auth';
 import { cn, formatDate, formatMoney } from '@/lib/utils';
+
+const WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
 
 interface GroupDetail {
   id: string;
   name: string;
   monthlyFee?: string | null;
   subject: { id: string; name: string };
-  teacher: { firstName: string; lastName: string } | null;
+  teacher: { id: string; firstName: string; lastName: string } | null;
   schedules: { id: string; weekday: string; startTime: string; endTime: string }[];
   enrollments: { status: string; student: { id: string; firstName: string; lastName: string; status: string } }[];
   curriculumCoverage: { totalTopics: number; completedTopics: number; percentage: number | null };
@@ -41,6 +44,8 @@ const TOPIC_STATES = [
 ];
 
 interface StudentLite { id: string; firstName: string; lastName: string }
+interface TeacherLite { id: string; firstName: string; lastName: string }
+interface Slot { weekday: string; startTime: string; endTime: string }
 
 export default function GroupDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -53,6 +58,13 @@ export default function GroupDetailPage() {
   const [allStudents, setAllStudents] = useState<StudentLite[]>([]);
   const [selected, setSelected] = useState<Record<string, boolean>>({});
   const [studentSearch, setStudentSearch] = useState('');
+
+  // Edit-settings state (admin only)
+  const [editing, setEditing] = useState(false);
+  const [teachers, setTeachers] = useState<TeacherLite[]>([]);
+  const [ef, setEf] = useState({ name: '', teacherId: '', monthlyFee: '0' });
+  const [eslots, setEslots] = useState<Slot[]>([]);
+  const [savingEdit, setSavingEdit] = useState(false);
 
   const loadGroup = useCallback(() => {
     api.get<GroupDetail>(`/groups/${id}`).then(setGroup).catch(() => undefined);
@@ -93,6 +105,36 @@ export default function GroupDetailPage() {
     loadBoard();
   }
 
+  function openEdit() {
+    if (!group) return;
+    setEditing(true);
+    setEf({
+      name: group.name,
+      teacherId: group.teacher?.id ?? '',
+      monthlyFee: group.monthlyFee != null ? String(Number(group.monthlyFee)) : '0',
+    });
+    setEslots(group.schedules.map((s) => ({ weekday: s.weekday, startTime: s.startTime, endTime: s.endTime })));
+    api.get<{ data: TeacherLite[] }>('/teachers?limit=100').then((r) => setTeachers(r.data)).catch(() => undefined);
+  }
+
+  async function saveEdit() {
+    setSavingEdit(true);
+    try {
+      await api.patch(`/groups/${id}`, {
+        name: ef.name,
+        teacherId: ef.teacherId || null,
+        monthlyFee: Number(ef.monthlyFee) || 0,
+        schedules: eslots.filter((s) => s.startTime && s.endTime),
+      });
+      setEditing(false);
+      loadGroup();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not save group.');
+    } finally {
+      setSavingEdit(false);
+    }
+  }
+
   if (!group) return <p className="text-muted-foreground">Loading…</p>;
   const active = group.enrollments.filter((e) => e.status === 'ACTIVE');
 
@@ -110,10 +152,64 @@ export default function GroupDetailPage() {
             {group.monthlyFee != null && ` · ${formatMoney(group.monthlyFee)}/mo`}
           </p>
         </div>
-        <Link href={`/attendance?group=${group.id}`}>
-          <Button><CalendarCheck size={16} /> Mark attendance</Button>
-        </Link>
+        <div className="flex gap-2">
+          {isAdmin && (
+            <Button variant="outline" onClick={editing ? () => setEditing(false) : openEdit}>
+              {editing ? 'Cancel' : 'Edit settings'}
+            </Button>
+          )}
+          <Link href={`/attendance?group=${group.id}`}>
+            <Button><CalendarCheck size={16} /> Mark attendance</Button>
+          </Link>
+        </div>
       </div>
+
+      {editing && isAdmin && (
+        <Card>
+          <CardHeader><CardTitle>Edit group settings</CardTitle></CardHeader>
+          <CardContent>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Group name</label>
+                <Input value={ef.name} onChange={(e) => setEf({ ...ef, name: e.target.value })} />
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Teacher</label>
+                <Select value={ef.teacherId} onChange={(e) => setEf({ ...ef, teacherId: e.target.value })} className="w-full">
+                  <option value="">No teacher</option>
+                  {teachers.map((t) => <option key={t.id} value={t.id}>{t.firstName} {t.lastName}</option>)}
+                </Select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-muted-foreground">Monthly fee</label>
+                <Input type="number" min={0} value={ef.monthlyFee} onChange={(e) => setEf({ ...ef, monthlyFee: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              <div className="text-xs font-medium text-muted-foreground">Schedule</div>
+              {eslots.map((slot, i) => (
+                <div key={i} className="flex gap-2">
+                  <Select value={slot.weekday} onChange={(e) => setEslots(eslots.map((s, j) => j === i ? { ...s, weekday: e.target.value } : s))}>
+                    {WEEKDAYS.map((d) => <option key={d} value={d}>{d}</option>)}
+                  </Select>
+                  <Input type="time" value={slot.startTime} onChange={(e) => setEslots(eslots.map((s, j) => j === i ? { ...s, startTime: e.target.value } : s))} />
+                  <Input type="time" value={slot.endTime} onChange={(e) => setEslots(eslots.map((s, j) => j === i ? { ...s, endTime: e.target.value } : s))} />
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setEslots(eslots.filter((_, j) => j !== i))}>✕</Button>
+                </div>
+              ))}
+              <Button type="button" variant="outline" size="sm" onClick={() => setEslots([...eslots, { weekday: 'MON', startTime: '16:00', endTime: '17:30' }])}>
+                ＋ Add time slot
+              </Button>
+            </div>
+
+            <div className="mt-4 flex gap-2">
+              <Button onClick={saveEdit} disabled={savingEdit}>{savingEdit ? 'Saving…' : 'Save changes'}</Button>
+              <Button variant="outline" onClick={() => setEditing(false)}>Cancel</Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-3">
         <Card>

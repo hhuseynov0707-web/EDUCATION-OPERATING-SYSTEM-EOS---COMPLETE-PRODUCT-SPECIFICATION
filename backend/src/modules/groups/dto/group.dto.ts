@@ -67,10 +67,10 @@ export class UpdateGroupDto {
   @IsString()
   name?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({ description: 'Pass null to unassign the teacher' })
   @IsOptional()
   @IsUUID()
-  teacherId?: string;
+  teacherId?: string | null;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -78,6 +78,13 @@ export class UpdateGroupDto {
   @IsNumber()
   @Min(0)
   monthlyFee?: number;
+
+  @ApiPropertyOptional({ type: [ScheduleSlotDto], description: 'Replaces the whole schedule' })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => ScheduleSlotDto)
+  schedules?: ScheduleSlotDto[];
 }
 
 export class EnrollStudentsDto {

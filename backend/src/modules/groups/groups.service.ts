@@ -94,13 +94,23 @@ export class GroupsService {
 
   async update(id: string, dto: UpdateGroupDto) {
     await this.ensureExists(id);
-    return this.prisma.group.update({
-      where: { id },
-      data: {
-        name: dto.name,
-        teacherId: dto.teacherId,
-        monthlyFee: dto.monthlyFee !== undefined ? new Prisma.Decimal(dto.monthlyFee) : undefined,
-      },
+    return this.prisma.$transaction(async (tx) => {
+      // When a new schedule is supplied, replace the existing slots entirely.
+      if (dto.schedules) {
+        await tx.groupSchedule.deleteMany({ where: { groupId: id } });
+      }
+      return tx.group.update({
+        where: { id },
+        data: {
+          name: dto.name,
+          // undefined = leave unchanged; null = unassign teacher.
+          teacherId: dto.teacherId === undefined ? undefined : dto.teacherId,
+          monthlyFee:
+            dto.monthlyFee !== undefined ? new Prisma.Decimal(dto.monthlyFee) : undefined,
+          schedules: dto.schedules ? { create: dto.schedules.map((s) => ({ ...s })) } : undefined,
+        },
+        include: { schedules: true },
+      });
     });
   }
 
