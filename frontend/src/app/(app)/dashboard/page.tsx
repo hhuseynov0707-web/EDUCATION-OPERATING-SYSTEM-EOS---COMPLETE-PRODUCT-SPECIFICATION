@@ -2,6 +2,7 @@
 
 import { CalendarCheck } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -40,14 +41,19 @@ function Stat({ title, value, sub, href }: { title: string; value: string; sub?:
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const router = useRouter();
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPER_ADMIN';
   const [admin, setAdmin] = useState<AdminDash | null>(null);
   const [teacher, setTeacher] = useState<TeacherDash | null>(null);
 
   useEffect(() => {
+    if (user?.role === 'PARENT') {
+      router.replace('/parent');
+      return;
+    }
     if (isAdmin) api.get<AdminDash>('/dashboard/admin').then(setAdmin).catch(() => undefined);
-    else api.get<TeacherDash>('/dashboard/teacher').then(setTeacher).catch(() => undefined);
-  }, [isAdmin]);
+    else if (user?.role === 'TEACHER') api.get<TeacherDash>('/dashboard/teacher').then(setTeacher).catch(() => undefined);
+  }, [isAdmin, user, router]);
 
   if (isAdmin) {
     if (!admin) return <p className="text-muted-foreground">Loading dashboard…</p>;

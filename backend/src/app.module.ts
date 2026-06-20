@@ -17,6 +17,7 @@ import { ExamsModule } from './modules/exams/exams.module';
 import { GroupsModule } from './modules/groups/groups.module';
 import { MessagesModule } from './modules/messages/messages.module';
 import { NotesModule } from './modules/notes/notes.module';
+import { ParentsModule } from './modules/parents/parents.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { RiskModule } from './modules/risk/risk.module';
 import { StudentsModule } from './modules/students/students.module';
@@ -34,6 +35,7 @@ import { TeachersModule } from './modules/teachers/teachers.module';
     CatalogModule,
     StudentsModule,
     TeachersModule,
+    ParentsModule,
     GroupsModule,
     MessagesModule,
     AttendanceModule,
