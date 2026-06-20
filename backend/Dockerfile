@@ -19,5 +19,8 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/prisma ./prisma
 EXPOSE 4000
-# Apply migrations then boot.
-CMD ["sh", "-c", "npx prisma migrate deploy && node dist/main.js"]
+# Boot the app. Migrations are applied separately (the DB is already migrated);
+# running `migrate deploy` on every boot caused advisory-lock timeouts on Neon's
+# scale-to-zero free tier. Apply future migrations with `prisma migrate deploy`
+# from a dev machine (or a one-off job) against the Neon DIRECT_URL.
+CMD ["node", "dist/main.js"]
