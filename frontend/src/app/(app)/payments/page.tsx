@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { api } from '@/lib/api';
 import { formatDate, formatMoney } from '@/lib/utils';
 
@@ -44,9 +45,13 @@ export default function PaymentsPage() {
   const [statusFilter, setStatusFilter] = useState('');
   const [result, setResult] = useState<Paged | null>(null);
 
+  const [recording, setRecording] = useState<PaymentRow | null>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [savingPay, setSavingPay] = useState(false);
+
   const load = useCallback(() => {
     api.get<Summary>(`/payments/summary?year=${year}&month=${month}`).then(setSummary).catch(() => undefined);
-    const params = new URLSearchParams({ limit: '20', periodYear: String(year), periodMonth: String(month) });
+    const params = new URLSearchParams({ limit: '100', periodYear: String(year), periodMonth: String(month) });
     if (statusFilter) params.set('status', statusFilter);
     api.get<Paged>(`/payments?${params}`).then(setResult).catch(() => undefined);
   }, [year, month, statusFilter]);
@@ -56,6 +61,25 @@ export default function PaymentsPage() {
   async function generate() {
     await api.post('/payments/generate-monthly', { periodYear: year, periodMonth: month }).catch(() => undefined);
     load();
+  }
+
+  function openRecord(p: PaymentRow) {
+    setRecording(p);
+    setPayAmount(String(Number(p.amountDue))); // default to paying the full amount
+  }
+
+  async function savePay() {
+    if (!recording) return;
+    setSavingPay(true);
+    try {
+      await api.patch(`/payments/${recording.id}/record`, { amountPaid: Number(payAmount) || 0 });
+      setRecording(null);
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not record payment.');
+    } finally {
+      setSavingPay(false);
+    }
   }
 
   return (
@@ -119,6 +143,7 @@ export default function PaymentsPage() {
               <th className="px-4 py-2">Paid</th>
               <th className="px-4 py-2">Due date</th>
               <th className="px-4 py-2">Status</th>
+              <th className="px-4 py-2"></th>
             </tr>
           </thead>
           <tbody>
@@ -130,14 +155,42 @@ export default function PaymentsPage() {
                 <td className="px-4 py-2">{formatMoney(p.amountPaid)}</td>
                 <td className="px-4 py-2 text-muted-foreground">{formatDate(p.dueDate)}</td>
                 <td className="px-4 py-2"><Badge tone={tone[p.status] ?? 'gray'}>{p.status}</Badge></td>
+                <td className="px-4 py-2 text-right">
+                  {p.status !== 'PAID' && (
+                    <Button variant="outline" size="sm" onClick={() => openRecord(p)}>Record payment</Button>
+                  )}
+                </td>
               </tr>
             ))}
             {result && result.data.length === 0 && (
-              <tr><td colSpan={6} className="px-4 py-6 text-center text-muted-foreground">No invoices for this period.</td></tr>
+              <tr><td colSpan={7} className="px-4 py-6 text-center text-muted-foreground">No invoices for this period.</td></tr>
             )}
           </tbody>
         </table>
       </Card>
+
+      {recording && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setRecording(null)}>
+          <Card className="w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <CardHeader><CardTitle>Record payment</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {recording.student.firstName} {recording.student.lastName} · {recording.periodMonth}/{recording.periodYear}
+                <br />Invoice: {formatMoney(recording.amountDue)} · already paid {formatMoney(recording.amountPaid)}
+              </p>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Total amount paid</label>
+                <Input type="number" min={0} value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
+                <p className="mt-1 text-xs text-muted-foreground">Status updates automatically (PAID / PARTIAL).</p>
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={savePay} disabled={savingPay}>{savingPay ? 'Saving…' : 'Save'}</Button>
+                <Button variant="outline" onClick={() => setRecording(null)}>Cancel</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

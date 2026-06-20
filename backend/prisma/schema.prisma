@@ -221,8 +221,9 @@ model Teacher {
   // Monthly salary — financial data, only ever exposed to admins.
   salary         Decimal?  @db.Decimal(10, 2)
 
-  groups Group[]
-  notes  TeacherNote[] @relation("NoteTeacher")
+  groups          Group[]
+  notes           TeacherNote[]    @relation("NoteTeacher")
+  salaryPayments  SalaryPayment[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -619,4 +620,25 @@ model Message {
   @@index([studentId])
   @@index([createdAt])
   @@map("messages")
+}
+
+// ─────────────────────────────── SALARIES ────────────────────────────────
+
+/// A recorded teacher salary payment for a given month (admin-only).
+model SalaryPayment {
+  id          String   @id @default(uuid()) @db.Uuid
+  teacherId   String   @db.Uuid
+  teacher     Teacher  @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+  periodYear  Int
+  periodMonth Int
+  amount      Decimal  @db.Decimal(10, 2)
+  paidAt      DateTime @default(now())
+  note        String?
+
+  createdAt DateTime @default(now())
+
+  @@unique([teacherId, periodYear, periodMonth])
+  @@index([teacherId])
+  @@index([periodYear, periodMonth])
+  @@map("salary_payments")
 }

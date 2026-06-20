@@ -86,7 +86,7 @@ export default function GroupDetailPage() {
     setStudentSearch('');
     setEnrollMsg(null);
     api
-      .get<{ data: StudentLite[] }>('/students?limit=200')
+      .get<{ data: StudentLite[] }>('/students?limit=500')
       .then((r) => setAllStudents(r.data))
       .catch((e) => setEnrollMsg(e instanceof Error ? e.message : 'Could not load students.'));
   }

@@ -33,7 +33,7 @@ export default function ParentsPage() {
   }, []);
   useEffect(() => {
     load();
-    api.get<{ data: StudentLite[] }>('/students?limit=200').then((r) => setStudents(r.data)).catch(() => undefined);
+    api.get<{ data: StudentLite[] }>('/students?limit=500').then((r) => setStudents(r.data)).catch(() => undefined);
   }, [load]);
 
   async function create(e: React.FormEvent) {
