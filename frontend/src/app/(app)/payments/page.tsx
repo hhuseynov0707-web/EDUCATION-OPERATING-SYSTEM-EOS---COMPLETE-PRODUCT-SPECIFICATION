@@ -65,7 +65,9 @@ export default function PaymentsPage() {
 
   function openRecord(p: PaymentRow) {
     setRecording(p);
-    setPayAmount(String(Number(p.amountDue))); // default to paying the full amount
+    // Prefill with what's already paid (so a mistaken PAID can be corrected),
+    // otherwise default to the full amount due.
+    setPayAmount(String(Number(p.amountPaid) > 0 ? Number(p.amountPaid) : Number(p.amountDue)));
   }
 
   async function savePay() {
@@ -156,9 +158,9 @@ export default function PaymentsPage() {
                 <td className="px-4 py-2 text-muted-foreground">{formatDate(p.dueDate)}</td>
                 <td className="px-4 py-2"><Badge tone={tone[p.status] ?? 'gray'}>{p.status}</Badge></td>
                 <td className="px-4 py-2 text-right">
-                  {p.status !== 'PAID' && (
-                    <Button variant="outline" size="sm" onClick={() => openRecord(p)}>Record payment</Button>
-                  )}
+                  <Button variant="outline" size="sm" onClick={() => openRecord(p)}>
+                    {p.status === 'PAID' ? 'Edit' : 'Record payment'}
+                  </Button>
                 </td>
               </tr>
             ))}

@@ -6,7 +6,7 @@ import { Audit } from '../../common/decorators/audit.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { AuditInterceptor } from '../../common/interceptors/audit.interceptor';
 import { AttendanceService } from './attendance.service';
-import { HistoryQueryDto, MarkAttendanceDto, RosterQueryDto } from './dto/attendance.dto';
+import { GridQueryDto, HistoryQueryDto, MarkAttendanceDto, RosterQueryDto } from './dto/attendance.dto';
 
 @ApiTags('attendance')
 @ApiBearerAuth()
@@ -30,5 +30,10 @@ export class AttendanceController {
   @Get('history')
   history(@Query() query: HistoryQueryDto, @CurrentUser() user: AuthUser) {
     return this.attendance.history(query, user);
+  }
+
+  @Get('grid')
+  grid(@Query() query: GridQueryDto, @CurrentUser() user: AuthUser) {
+    return this.attendance.grid(query, user);
   }
 }

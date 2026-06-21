@@ -57,6 +57,20 @@ export class MarkAttendanceDto {
   records!: AttendanceRecordDto[];
 }
 
+export class GridQueryDto {
+  @ApiProperty()
+  @IsUUID()
+  groupId!: string;
+
+  @ApiProperty({ example: '2026-06-01' })
+  @IsDateString()
+  from!: string;
+
+  @ApiProperty({ example: '2026-06-30' })
+  @IsDateString()
+  to!: string;
+}
+
 export class HistoryQueryDto {
   @ApiProperty()
   @IsUUID()
