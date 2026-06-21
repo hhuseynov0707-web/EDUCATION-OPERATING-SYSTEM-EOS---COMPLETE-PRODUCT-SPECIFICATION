@@ -11,7 +11,8 @@ import { GridQueryDto, HistoryQueryDto, MarkAttendanceDto, RosterQueryDto } from
 @ApiTags('attendance')
 @ApiBearerAuth()
 @UseInterceptors(AuditInterceptor)
-@Roles(Role.TEACHER, Role.ADMIN, Role.SUPER_ADMIN)
+// Attendance is a teacher-only tool — admins do not mark or view it here.
+@Roles(Role.TEACHER)
 @Controller('attendance')
 export class AttendanceController {
   constructor(private readonly attendance: AttendanceService) {}

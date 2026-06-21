@@ -126,17 +126,24 @@ export class AttendanceService {
    * Spreadsheet view: students × class-days for a date range. Columns are the
    * days the group actually meets (from its weekly schedule), plus any dates a
    * lesson already exists. Pre-filled with recorded attendance.
+   *
+   * Each returned day carries a `seq` — its global lesson number counted
+   * continuously from the group's creation date — so the UI can mark every
+   * 8th lesson (the academy's payment / salary cycle) even when a cycle spans
+   * more than one month.
    */
   async grid(query: GridQueryDto, user: AuthUser) {
     await this.assertGroupAccess(query.groupId, user);
     const from = toDateOnly(query.from);
     const to = toDateOnly(query.to);
 
-    const [group, enrollments, lessons] = await this.prisma.$transaction([
-      this.prisma.group.findFirst({
-        where: { id: query.groupId, deletedAt: null },
-        include: { schedules: true },
-      }),
+    const group = await this.prisma.group.findFirst({
+      where: { id: query.groupId, deletedAt: null },
+      include: { schedules: true },
+    });
+    if (!group) throw new NotFoundException('Group not found');
+
+    const [enrollments, lessons, allLessons] = await Promise.all([
       this.prisma.groupStudent.findMany({
         where: { groupId: query.groupId, status: 'ACTIVE' },
         include: { student: { select: { id: true, firstName: true, lastName: true } } },
@@ -147,20 +154,37 @@ export class AttendanceService {
         include: { attendance: { select: { studentId: true, status: true } } },
         orderBy: { date: 'asc' },
       }),
+      // Every lesson date up to the view, so the lesson counter is stable no
+      // matter which month is being looked at (date-only rows — cheap).
+      this.prisma.lesson.findMany({
+        where: { groupId: query.groupId, deletedAt: null, date: { lte: to } },
+        select: { date: true },
+        orderBy: { date: 'asc' },
+      }),
     ]);
-    if (!group) throw new NotFoundException('Group not found');
 
-    // Build the set of class-days from the weekly schedule, within the range.
+    // Fixed anchor for the 8-lesson counter: the group's first-ever lesson if
+    // it predates creation (e.g. backfilled history), otherwise its creation
+    // date. Independent of the query range, so seq never shifts between views.
+    const createdDate = toDateOnly(group.createdAt.toISOString());
+    const firstLesson = allLessons[0] ? toDateOnly(allLessons[0].date.toISOString()) : null;
+    const anchor = firstLesson && firstLesson < createdDate ? firstLesson : createdDate;
+
+    // A day is a lesson if the group is scheduled that weekday, or a lesson
+    // already exists on it (off-schedule make-ups, etc.).
     const wantWeekdays = new Set(group.schedules.map((s) => s.weekday));
-    const dateSet = new Set<string>();
-    for (let d = new Date(from); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
-      if (wantWeekdays.has(WEEKDAY_ENUM[d.getUTCDay()])) {
-        dateSet.add(d.toISOString().slice(0, 10));
-      }
+    const lessonDates = new Set<string>(allLessons.map((l) => l.date.toISOString().slice(0, 10)));
+
+    // Walk from the fixed anchor to the end of the range, numbering every
+    // class-day; only days inside [from, to] are returned for display.
+    const dates: { date: string; seq: number }[] = [];
+    let seq = 0;
+    for (let d = new Date(anchor); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+      const ds = d.toISOString().slice(0, 10);
+      if (!wantWeekdays.has(WEEKDAY_ENUM[d.getUTCDay()]) && !lessonDates.has(ds)) continue;
+      seq += 1;
+      if (d >= from) dates.push({ date: ds, seq });
     }
-    // Include any dates that already have a lesson (off-schedule make-ups, etc.).
-    for (const l of lessons) dateSet.add(l.date.toISOString().slice(0, 10));
-    const dates = Array.from(dateSet).sort();
 
     // records[studentId][date] = status
     const records: Record<string, Record<string, string>> = {};
@@ -179,18 +203,19 @@ export class AttendanceService {
     };
   }
 
-  /** Teachers may only touch groups they are assigned to. Admins see all. */
+  /**
+   * Attendance is a teacher-only tool — admins (incl. super admin) are blocked
+   * here. A teacher may only touch the groups they are assigned to.
+   */
   private async assertGroupAccess(groupId: string, user: AuthUser) {
-    if (user.role === Role.SUPER_ADMIN || user.role === Role.ADMIN) return;
-    if (user.role === Role.TEACHER) {
-      const group = await this.prisma.group.findFirst({
-        where: { id: groupId, teacherId: user.profileId ?? undefined },
-        select: { id: true },
-      });
-      if (!group) throw new ForbiddenException('You are not assigned to this group');
-      return;
+    if (user.role !== Role.TEACHER) {
+      throw new ForbiddenException('Attendance is managed by teachers only');
     }
-    throw new ForbiddenException('Not allowed');
+    const group = await this.prisma.group.findFirst({
+      where: { id: groupId, teacherId: user.profileId ?? undefined },
+      select: { id: true },
+    });
+    if (!group) throw new ForbiddenException('You are not assigned to this group');
   }
 }
 

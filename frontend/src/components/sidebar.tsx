@@ -30,7 +30,7 @@ const NAV = [
   { href: '/teachers', label: 'Teachers', icon: UserCog, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/parents', label: 'Parents', icon: Contact, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/groups', label: 'Groups', icon: Layers, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
-  { href: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
+  { href: '/attendance', label: 'Attendance', icon: CalendarCheck, roles: ['TEACHER'] },
   { href: '/exams', label: 'Exams', icon: GraduationCap, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER'] },
   { href: '/messages', label: 'Messages', icon: MessageSquare, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER', 'PARENT'] },
   { href: '/payments', label: 'Payments', icon: CreditCard, roles: ['SUPER_ADMIN', 'ADMIN'] },

@@ -1,7 +1,7 @@
 'use client';
 
 import { ChevronLeft, ChevronRight } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { api } from '@/lib/api';
@@ -9,9 +9,10 @@ import { cn } from '@/lib/utils';
 
 interface Group { id: string; name: string }
 interface GridStudent { id: string; firstName: string; lastName: string }
+interface GridDay { date: string; seq: number }
 interface GridData {
   group: { id: string; name: string };
-  dates: string[];
+  dates: GridDay[];
   students: GridStudent[];
   records: Record<string, Record<string, string>>;
 }
@@ -27,6 +28,8 @@ const CELL_CLS: Record<Status, string> = {
 };
 const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+// The academy bills / pays every 8 lessons; the grid marks that boundary.
+const LESSONS_PER_CYCLE = 8;
 
 export default function AttendancePage() {
   const [groups, setGroups] = useState<Group[]>([]);
@@ -112,6 +115,11 @@ export default function AttendancePage() {
     });
   }
 
+  // A cycle boundary falls after every 8th lesson — but not at the very end of
+  // the view (no dangling gap on the last column).
+  const isGapAfter = (seq: number, i: number) =>
+    grid !== null && seq % LESSONS_PER_CYCLE === 0 && i < grid.dates.length - 1;
+
   return (
     <div className="space-y-4">
       <h1 className="text-2xl font-semibold">Attendance</h1>
@@ -137,12 +145,13 @@ export default function AttendancePage() {
         </div>
       </div>
 
-      <div className="flex gap-3 text-xs text-muted-foreground">
+      <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
         <span><b className="text-green-600">P</b> Present</span>
         <span><b className="text-red-600">A</b> Absent</span>
         <span><b className="text-amber-600">L</b> Late</span>
         <span><b className="text-blue-600">E</b> Excused</span>
         <span>· Click a cell to cycle · click a date header to fill the column Present</span>
+        <span>· The <b className="text-amber-600">amber line</b> marks every {LESSONS_PER_CYCLE} lessons (payment / salary point)</span>
       </div>
 
       <Card className="overflow-x-auto">
@@ -161,18 +170,30 @@ export default function AttendancePage() {
                 <th className="sticky left-0 z-10 border-b border-r border-border bg-muted px-3 py-2 text-left text-xs uppercase text-muted-foreground">
                   Student
                 </th>
-                {grid.dates.map((d) => {
+                {grid.dates.map(({ date: d, seq }, i) => {
                   const dt = new Date(`${d}T00:00:00Z`);
                   return (
-                    <th
-                      key={d}
-                      onClick={() => fillColumnPresent(d)}
-                      title="Click to fill this day Present"
-                      className="cursor-pointer border-b border-border bg-muted px-1 py-1 text-center text-[11px] font-medium text-muted-foreground hover:bg-gray-200"
-                    >
-                      <div>{dt.getUTCDate()}</div>
-                      <div className="text-[9px]">{WD[dt.getUTCDay()]}</div>
-                    </th>
+                    <Fragment key={d}>
+                      <th
+                        onClick={() => fillColumnPresent(d)}
+                        title={`Lesson #${seq} · click to fill this day Present`}
+                        className={cn(
+                          'cursor-pointer border-b border-border bg-muted px-1 py-1 text-center text-[11px] font-medium text-muted-foreground hover:bg-gray-200',
+                          seq % LESSONS_PER_CYCLE === 0 && 'border-r-2 border-r-amber-400',
+                        )}
+                      >
+                        <div>{dt.getUTCDate()}</div>
+                        <div className="text-[9px]">{WD[dt.getUTCDay()]}</div>
+                      </th>
+                      {isGapAfter(seq, i) && (
+                        <th
+                          title={`${seq} lessons complete — payment / salary point`}
+                          className="border-b border-border bg-amber-100 px-1 text-center align-middle text-[10px] font-bold text-amber-700"
+                        >
+                          {seq}
+                        </th>
+                      )}
+                    </Fragment>
                   );
                 })}
               </tr>
@@ -183,22 +204,30 @@ export default function AttendancePage() {
                   <td className="sticky left-0 z-10 whitespace-nowrap border-b border-r border-border bg-white px-3 py-1.5 font-medium">
                     {s.firstName} {s.lastName}
                   </td>
-                  {grid.dates.map((d) => {
+                  {grid.dates.map(({ date: d, seq }, i) => {
                     const st = statusOf(s.id, d);
                     const changed = changes[s.id]?.[d] !== undefined;
                     return (
-                      <td key={d} className="border-b border-border p-0.5 text-center">
-                        <button
-                          onClick={() => cycle(s.id, d)}
+                      <Fragment key={d}>
+                        <td
                           className={cn(
-                            'h-7 w-7 rounded text-xs font-semibold',
-                            st ? CELL_CLS[st] : 'bg-gray-50 text-gray-300 hover:bg-gray-100',
-                            changed && 'ring-2 ring-offset-1 ring-primary',
+                            'border-b border-border p-0.5 text-center',
+                            seq % LESSONS_PER_CYCLE === 0 && 'border-r-2 border-r-amber-400',
                           )}
                         >
-                          {st ? LETTER[st] : '·'}
-                        </button>
-                      </td>
+                          <button
+                            onClick={() => cycle(s.id, d)}
+                            className={cn(
+                              'h-7 w-7 rounded text-xs font-semibold',
+                              st ? CELL_CLS[st] : 'bg-gray-50 text-gray-300 hover:bg-gray-100',
+                              changed && 'ring-2 ring-offset-1 ring-primary',
+                            )}
+                          >
+                            {st ? LETTER[st] : '·'}
+                          </button>
+                        </td>
+                        {isGapAfter(seq, i) && <td className="border-b border-border bg-amber-50" />}
+                      </Fragment>
                     );
                   })}
                 </tr>
