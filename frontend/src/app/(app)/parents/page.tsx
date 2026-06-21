@@ -77,7 +77,8 @@ export default function ParentsPage() {
   }
 
   async function remove(p: ParentRow) {
-    if (!window.confirm(`Delete parent ${p.firstName} ${p.lastName}? Their login is disabled.`)) return;
+    if (!window.confirm(`Delete parent ${p.firstName} ${p.lastName}?\n\nThis removes their account and frees the email.`)) return;
+    if (!window.confirm(`Are you sure? This cannot be undone.`)) return;
     try {
       await api.delete(`/parents/${p.id}`);
       load();

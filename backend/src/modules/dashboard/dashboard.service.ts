@@ -38,7 +38,7 @@ export class DashboardService {
       this.prisma.payment.findMany({
         where: {
           deletedAt: null,
-          student: { deletedAt: null },
+          OR: [{ student: { deletedAt: null } }, { studentId: null }],
           periodYear: now.getUTCFullYear(),
           periodMonth: now.getUTCMonth() + 1,
         },

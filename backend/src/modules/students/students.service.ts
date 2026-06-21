@@ -125,12 +125,27 @@ export class StudentsService {
     });
   }
 
+  /**
+   * Hard-delete a student and free any login email. Payment history is preserved
+   * (detached, with a name snapshot); attendance/exam/notes are removed.
+   */
   async remove(id: string) {
-    await this.ensureExists(id);
-    return this.prisma.student.update({
-      where: { id },
-      data: { deletedAt: new Date(), status: 'LEFT' },
+    const student = await this.prisma.student.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, userId: true, firstName: true, lastName: true },
     });
+    if (!student) throw new NotFoundException('Student not found');
+
+    await this.prisma.payment.updateMany({
+      where: { studentId: id },
+      data: { studentName: `${student.firstName} ${student.lastName}` },
+    });
+    // Cascades attendance/results/enrollments/notes/risk/parentLinks; payments kept (SetNull).
+    await this.prisma.student.delete({ where: { id } });
+    if (student.userId) {
+      await this.prisma.user.delete({ where: { id: student.userId } }).catch(() => undefined);
+    }
+    return { success: true };
   }
 
   // ── Student login accounts ──────────────────────────────────────────────

@@ -27,10 +27,45 @@ export default function TeachersPage() {
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
 
+  const [editing, setEditing] = useState<TeacherRow | null>(null);
+  const [ef, setEf] = useState({ firstName: '', lastName: '', phone: '', subjects: '', salary: '' });
+  const [savingEdit, setSavingEdit] = useState(false);
+
   const load = useCallback(() => {
-    api.get<{ data: TeacherRow[] }>('/teachers?limit=100').then((r) => setRows(r.data)).catch(() => undefined);
+    api.get<{ data: TeacherRow[] }>('/teachers?limit=500').then((r) => setRows(r.data)).catch(() => undefined);
   }, []);
   useEffect(load, [load]);
+
+  function openEdit(t: TeacherRow) {
+    setEditing(t);
+    setEf({
+      firstName: t.firstName,
+      lastName: t.lastName,
+      phone: t.phone ?? '',
+      subjects: t.subjectsTaught.join(', '),
+      salary: t.salary != null ? String(Number(t.salary)) : '',
+    });
+  }
+
+  async function saveEdit() {
+    if (!editing) return;
+    setSavingEdit(true);
+    try {
+      await api.patch(`/teachers/${editing.id}`, {
+        firstName: ef.firstName,
+        lastName: ef.lastName,
+        phone: ef.phone || undefined,
+        subjectsTaught: ef.subjects ? ef.subjects.split(',').map((s) => s.trim()).filter(Boolean) : [],
+        salary: ef.salary === '' ? undefined : Number(ef.salary),
+      });
+      setEditing(null);
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not save teacher.');
+    } finally {
+      setSavingEdit(false);
+    }
+  }
 
   async function create(e: React.FormEvent) {
     e.preventDefault();
@@ -77,7 +112,8 @@ export default function TeachersPage() {
   }
 
   async function deleteTeacher(t: TeacherRow) {
-    if (!window.confirm(`Delete teacher ${t.firstName} ${t.lastName}? Their login is disabled and groups are left without a teacher. History is kept.`)) return;
+    if (!window.confirm(`Delete teacher ${t.firstName} ${t.lastName}?\n\nThis removes their account and frees the email. Salary records are kept; groups are left without a teacher.`)) return;
+    if (!window.confirm(`Are you sure? This cannot be undone. Delete ${t.firstName} ${t.lastName} permanently?`)) return;
     try {
       await api.delete(`/teachers/${t.id}`);
       load();
@@ -139,6 +175,7 @@ export default function TeachersPage() {
                 <td className="px-4 py-2 text-muted-foreground">{t.salary != null ? formatMoney(t.salary) : '—'}</td>
                 <td className="px-4 py-2 text-right">
                   <div className="flex justify-end gap-2">
+                    <Button variant="outline" size="sm" onClick={() => openEdit(t)}>Edit</Button>
                     <Button variant="outline" size="sm" onClick={() => resetPassword(t)}>Reset password</Button>
                     <Button variant="destructive" size="sm" onClick={() => deleteTeacher(t)}>Delete</Button>
                   </div>
@@ -151,6 +188,28 @@ export default function TeachersPage() {
           </tbody>
         </table>
       </Card>
+
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setEditing(null)}>
+          <Card className="w-full max-w-lg" onClick={(e) => e.stopPropagation()}>
+            <CardHeader><CardTitle>Edit teacher — {editing.firstName} {editing.lastName}</CardTitle></CardHeader>
+            <CardContent>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">First name</label><Input value={ef.firstName} onChange={(e) => setEf({ ...ef, firstName: e.target.value })} /></div>
+                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Last name</label><Input value={ef.lastName} onChange={(e) => setEf({ ...ef, lastName: e.target.value })} /></div>
+                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Phone</label><Input value={ef.phone} onChange={(e) => setEf({ ...ef, phone: e.target.value })} /></div>
+                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Monthly salary</label><Input type="number" min={0} value={ef.salary} onChange={(e) => setEf({ ...ef, salary: e.target.value })} /></div>
+                <div className="sm:col-span-2"><label className="mb-1 block text-xs font-medium text-muted-foreground">Subjects (comma-separated)</label><Input value={ef.subjects} onChange={(e) => setEf({ ...ef, subjects: e.target.value })} /></div>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">Login email is changed by the teacher in their own Settings.</p>
+              <div className="mt-4 flex gap-2">
+                <Button onClick={saveEdit} disabled={savingEdit}>{savingEdit ? 'Saving…' : 'Save changes'}</Button>
+                <Button variant="outline" onClick={() => setEditing(null)}>Cancel</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

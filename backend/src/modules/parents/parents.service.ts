@@ -14,7 +14,19 @@ export class ParentsService {
 
   // ── Admin: manage parent accounts ──────────────────────────────────────
 
+  /** Remove a stale (soft-deleted/deactivated) parent account holding an email. */
+  private async freeStaleEmail(email: string) {
+    const existing = await this.prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+      select: { id: true, isActive: true, parent: { select: { deletedAt: true } } },
+    });
+    if (existing && existing.parent && (existing.parent.deletedAt || existing.isActive === false)) {
+      await this.prisma.user.delete({ where: { id: existing.id } });
+    }
+  }
+
   async create(dto: CreateParentDto) {
+    await this.freeStaleEmail(dto.email);
     const passwordHash = await AuthService.hashPassword(dto.password);
     return this.prisma.parent.create({
       data: {
@@ -43,10 +55,14 @@ export class ParentsService {
   }
 
   async remove(id: string) {
-    const parent = await this.prisma.parent.findFirst({ where: { id, deletedAt: null } });
+    const parent = await this.prisma.parent.findFirst({
+      where: { id, deletedAt: null },
+      select: { userId: true },
+    });
     if (!parent) throw new NotFoundException('Parent not found');
-    await this.prisma.user.update({ where: { id: parent.userId }, data: { isActive: false } });
-    return this.prisma.parent.update({ where: { id }, data: { deletedAt: new Date() } });
+    // Hard delete: removes the parent + child links and frees the login email.
+    await this.prisma.user.delete({ where: { id: parent.userId } });
+    return { success: true };
   }
 
   async resetPassword(id: string, newPassword: string) {

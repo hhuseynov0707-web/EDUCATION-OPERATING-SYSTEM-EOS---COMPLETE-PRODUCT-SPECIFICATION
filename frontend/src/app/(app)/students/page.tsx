@@ -80,7 +80,8 @@ export default function StudentsPage() {
   }
 
   async function deleteStudent(id: string, name: string) {
-    if (!window.confirm(`Delete student ${name}? They are marked as left and hidden. History is kept.`)) return;
+    if (!window.confirm(`Delete student ${name}?\n\nThis removes their record (attendance, exams, notes). Payment records are kept for accounting.`)) return;
+    if (!window.confirm(`Are you sure? This cannot be undone. Delete ${name} permanently?`)) return;
     try {
       await api.delete(`/students/${id}`);
       load();

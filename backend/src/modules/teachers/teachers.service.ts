@@ -13,6 +13,7 @@ export class TeachersService {
 
   /** Creates the login User and the Teacher profile atomically. */
   async create(dto: CreateTeacherDto) {
+    await this.freeStaleEmail(dto.email);
     const passwordHash = await AuthService.hashPassword(dto.password);
     return this.prisma.teacher.create({
       data: {
@@ -96,18 +97,44 @@ export class TeachersService {
     });
   }
 
+  /**
+   * Hard-delete a teacher and free their login email. Salary payment history is
+   * preserved (detached, with a name snapshot); groups are left teacher-less.
+   */
   async remove(id: string) {
-    await this.ensureExists(id);
-    const teacher = await this.prisma.teacher.update({
-      where: { id },
-      data: { deletedAt: new Date() },
+    const teacher = await this.prisma.teacher.findFirst({
+      where: { id, deletedAt: null },
+      select: { id: true, userId: true, firstName: true, lastName: true },
     });
-    // Disable the login so a departed teacher cannot authenticate.
-    await this.prisma.user.update({
-      where: { id: teacher.userId },
-      data: { isActive: false },
+    if (!teacher) throw new NotFoundException('Teacher not found');
+
+    await this.prisma.salaryPayment.updateMany({
+      where: { teacherId: id },
+      data: { teacherName: `${teacher.firstName} ${teacher.lastName}` },
     });
-    return teacher;
+    // Deleting the user cascades the teacher; FKs (groups, notes, salary) become null.
+    await this.prisma.user.delete({ where: { id: teacher.userId } });
+    return { success: true };
+  }
+
+  /** Remove a stale (already soft-deleted / deactivated) account holding an email. */
+  private async freeStaleEmail(email: string) {
+    const existing = await this.prisma.user.findUnique({
+      where: { email: email.toLowerCase() },
+      select: {
+        id: true,
+        isActive: true,
+        teacher: { select: { id: true, deletedAt: true, firstName: true, lastName: true } },
+      },
+    });
+    const t = existing?.teacher;
+    if (existing && t && (t.deletedAt || existing.isActive === false)) {
+      await this.prisma.salaryPayment.updateMany({
+        where: { teacherId: t.id },
+        data: { teacherName: `${t.firstName} ${t.lastName}` },
+      });
+      await this.prisma.user.delete({ where: { id: existing.id } });
+    }
   }
 
   /** Teacher performance metrics: student count, attendance quality, improvement. */

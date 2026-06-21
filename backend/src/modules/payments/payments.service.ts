@@ -37,7 +37,9 @@ export class PaymentsService {
   async findAll(query: QueryPaymentsDto): Promise<PaginatedResult<unknown>> {
     const where: Prisma.PaymentWhereInput = {
       deletedAt: null,
-      student: { deletedAt: null }, // exclude removed (e.g. demo) students
+      // Keep payments of hard-deleted students (studentId null, name snapshot)
+      // but hide old soft-deleted (demo) students' payments.
+      OR: [{ student: { deletedAt: null } }, { studentId: null }],
       ...(query.status ? { status: query.status } : {}),
       ...(query.studentId ? { studentId: query.studentId } : {}),
       ...(query.periodYear ? { periodYear: query.periodYear } : {}),
@@ -56,7 +58,12 @@ export class PaymentsService {
       }),
       this.prisma.payment.count({ where }),
     ]);
-    return paginate(data, total, query.page, query.limit);
+    // Fall back to the stored name snapshot when the student was deleted.
+    const shaped = data.map((p) => ({
+      ...p,
+      student: p.student ?? { id: null, firstName: p.studentName ?? 'Deleted student', lastName: '' },
+    }));
+    return paginate(shaped, total, query.page, query.limit);
   }
 
   /** Record a (partial or full) payment and recompute the status. */
@@ -147,7 +154,12 @@ export class PaymentsService {
   /** Revenue figures for the admin dashboard, scoped to a period. */
   async summary(periodYear: number, periodMonth: number) {
     const payments = await this.prisma.payment.findMany({
-      where: { deletedAt: null, student: { deletedAt: null }, periodYear, periodMonth },
+      where: {
+        deletedAt: null,
+        OR: [{ student: { deletedAt: null } }, { studentId: null }],
+        periodYear,
+        periodMonth,
+      },
       select: { amountDue: true, discount: true, amountPaid: true, status: true },
     });
 
