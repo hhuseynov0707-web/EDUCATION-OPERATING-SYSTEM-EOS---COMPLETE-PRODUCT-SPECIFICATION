@@ -17,7 +17,7 @@
     "prisma:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
     "db:seed": "ts-node prisma/seed.ts",
-    "db:wipe": "ts-node prisma/wipe.ts"
+    "db:wipe": "prisma generate && ts-node prisma/wipe.ts"
   },
   "prisma": {
     "seed": "ts-node prisma/seed.ts"
