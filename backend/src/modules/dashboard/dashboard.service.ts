@@ -145,13 +145,108 @@ export class DashboardService {
       })),
     };
   }
+
+  /** Academy-wide monthly business metrics for the last N months (admin). */
+  async monthly(monthsBack = 6) {
+    const window = lastNMonths(monthsBack);
+    const orPeriods = window.map((w) => ({ periodYear: w.year, periodMonth: w.month }));
+    const rangeStart = new Date(Date.UTC(window[0].year, window[0].month - 1, 1));
+
+    const [payments, salaries, lessons] = await Promise.all([
+      this.prisma.payment.findMany({
+        where: {
+          deletedAt: null,
+          OR: [{ student: { deletedAt: null } }, { studentId: null }],
+          AND: [{ OR: orPeriods }],
+        },
+        select: {
+          periodYear: true, periodMonth: true,
+          amountDue: true, discount: true, amountPaid: true, studentId: true,
+        },
+      }),
+      this.prisma.salaryPayment.findMany({
+        where: { OR: orPeriods },
+        select: { periodYear: true, periodMonth: true, amount: true },
+      }),
+      this.prisma.lesson.findMany({
+        where: { deletedAt: null, date: { gte: rangeStart } },
+        select: { date: true, attendance: { select: { status: true } } },
+      }),
+    ]);
+
+    type Bucket = {
+      year: number; month: number;
+      expected: number; collected: number; salaries: number;
+      students: Set<string>; attendTotal: number; attendPresent: number;
+    };
+    const buckets = new Map<string, Bucket>();
+    for (const w of window) {
+      buckets.set(`${w.year}-${w.month}`, {
+        year: w.year, month: w.month,
+        expected: 0, collected: 0, salaries: 0,
+        students: new Set(), attendTotal: 0, attendPresent: 0,
+      });
+    }
+
+    for (const p of payments) {
+      const b = buckets.get(`${p.periodYear}-${p.periodMonth}`);
+      if (!b) continue;
+      b.expected += Number(p.amountDue) - Number(p.discount);
+      b.collected += Number(p.amountPaid);
+      if (p.studentId) b.students.add(p.studentId);
+    }
+    for (const s of salaries) {
+      const b = buckets.get(`${s.periodYear}-${s.periodMonth}`);
+      if (b) b.salaries += Number(s.amount);
+    }
+    for (const l of lessons) {
+      const b = buckets.get(`${l.date.getUTCFullYear()}-${l.date.getUTCMonth() + 1}`);
+      if (!b) continue;
+      for (const a of l.attendance) {
+        b.attendTotal += 1;
+        if (a.status === AttendanceStatus.PRESENT || a.status === AttendanceStatus.LATE) {
+          b.attendPresent += 1;
+        }
+      }
+    }
+
+    return window.map((w) => {
+      const b = buckets.get(`${w.year}-${w.month}`)!;
+      const collected = round2(b.collected);
+      const salariesPaid = round2(b.salaries);
+      return {
+        year: w.year,
+        month: w.month,
+        label: `${MONTH_ABBR[w.month - 1]} ${w.year}`,
+        expectedRevenue: round2(b.expected),
+        collectedRevenue: collected,
+        collectionRate: b.expected > 0 ? Math.round((b.collected / b.expected) * 100) : null,
+        students: b.students.size,
+        attendanceRate: b.attendTotal > 0 ? Math.round((b.attendPresent / b.attendTotal) * 100) : null,
+        salariesPaid,
+        netRevenue: round2(collected - salariesPaid),
+      };
+    });
+  }
 }
 
 const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'] as const;
+const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function startOfToday(): Date {
   const now = new Date();
   return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+}
+
+/** The last `n` months as {year, month}, oldest first, including the current. */
+function lastNMonths(n: number): { year: number; month: number }[] {
+  const now = new Date();
+  const out: { year: number; month: number }[] = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
+    out.push({ year: d.getUTCFullYear(), month: d.getUTCMonth() + 1 });
+  }
+  return out;
 }
 
 function round2(n: number): number {

@@ -13,6 +13,7 @@ import {
   MessageSquare,
   Settings,
   ShieldAlert,
+  TrendingUp,
   UserCog,
   Users,
 } from 'lucide-react';
@@ -35,6 +36,7 @@ const NAV = [
   { href: '/messages', label: 'Messages', icon: MessageSquare, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER', 'PARENT'] },
   { href: '/payments', label: 'Payments', icon: CreditCard, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/salaries', label: 'Salaries', icon: Banknote, roles: ['SUPER_ADMIN', 'ADMIN'] },
+  { href: '/progress', label: 'Progress', icon: TrendingUp, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/risk', label: 'At-Risk', icon: ShieldAlert, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/audit', label: 'Audit Log', icon: FileText, roles: ['SUPER_ADMIN', 'ADMIN'] },
   { href: '/settings', label: 'Settings', icon: Settings, roles: ['SUPER_ADMIN', 'ADMIN', 'TEACHER', 'PARENT', 'STUDENT'] },

@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller, Get, Query } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { AuthUser, CurrentUser } from '../../common/decorators/current-user.decorator';
@@ -21,5 +21,12 @@ export class DashboardController {
   @Get('teacher')
   teacher(@CurrentUser() user: AuthUser) {
     return this.dashboard.teacher(user);
+  }
+
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @Get('monthly')
+  monthly(@Query('months') months?: string) {
+    const n = Math.min(24, Math.max(1, Number(months) || 6));
+    return this.dashboard.monthly(n);
   }
 }
