@@ -56,7 +56,7 @@ export default function TeachersPage() {
         lastName: ef.lastName,
         phone: ef.phone || undefined,
         subjectsTaught: ef.subjects ? ef.subjects.split(',').map((s) => s.trim()).filter(Boolean) : [],
-        salary: ef.salary === '' ? undefined : Number(ef.salary),
+        salary: ef.salary === '' ? null : Number(ef.salary),
       });
       setEditing(null);
       load();
@@ -142,7 +142,7 @@ export default function TeachersPage() {
               <Input type="text" placeholder="Password (min 8 chars)" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
               <Input placeholder="Phone (optional)" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
               <Input placeholder="Subjects, comma-separated" value={form.subjects} onChange={(e) => setForm({ ...form, subjects: e.target.value })} />
-              <Input type="number" min={0} placeholder="Monthly salary (optional)" value={form.salary} onChange={(e) => setForm({ ...form, salary: e.target.value })} />
+              <Input type="number" min={0} placeholder="Fixed salary — leave blank for auto 50/50" value={form.salary} onChange={(e) => setForm({ ...form, salary: e.target.value })} />
               <div className="sm:col-span-2">
                 <Button disabled={saving}>{saving ? 'Saving…' : 'Create teacher'}</Button>
               </div>
@@ -198,7 +198,7 @@ export default function TeachersPage() {
                 <div><label className="mb-1 block text-xs font-medium text-muted-foreground">First name</label><Input value={ef.firstName} onChange={(e) => setEf({ ...ef, firstName: e.target.value })} /></div>
                 <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Last name</label><Input value={ef.lastName} onChange={(e) => setEf({ ...ef, lastName: e.target.value })} /></div>
                 <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Phone</label><Input value={ef.phone} onChange={(e) => setEf({ ...ef, phone: e.target.value })} /></div>
-                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Monthly salary</label><Input type="number" min={0} value={ef.salary} onChange={(e) => setEf({ ...ef, salary: e.target.value })} /></div>
+                <div><label className="mb-1 block text-xs font-medium text-muted-foreground">Fixed salary <span className="font-normal">(blank = auto 50/50)</span></label><Input type="number" min={0} value={ef.salary} onChange={(e) => setEf({ ...ef, salary: e.target.value })} /></div>
                 <div className="sm:col-span-2"><label className="mb-1 block text-xs font-medium text-muted-foreground">Subjects (comma-separated)</label><Input value={ef.subjects} onChange={(e) => setEf({ ...ef, subjects: e.target.value })} /></div>
               </div>
               <p className="mt-2 text-xs text-muted-foreground">Login email is changed by the teacher in their own Settings.</p>

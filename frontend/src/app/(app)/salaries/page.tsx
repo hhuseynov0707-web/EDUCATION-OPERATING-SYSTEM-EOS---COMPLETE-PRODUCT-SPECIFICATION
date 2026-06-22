@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
 import { Select } from '@/components/ui/select';
 import { api } from '@/lib/api';
 import { formatDate, formatMoney } from '@/lib/utils';
@@ -11,7 +12,10 @@ import { formatDate, formatMoney } from '@/lib/utils';
 interface Row {
   teacherId: string;
   name: string;
-  salary: number | null;
+  salary: number;
+  expectedSalary: number;
+  manualSalary: number | null;
+  studentCount: number;
   paid: boolean;
   amount: number | null;
   paidAt: string | null;
@@ -41,15 +45,40 @@ export default function SalariesPage() {
   const [month, setMonth] = useState(now.getUTCMonth() + 1);
   const [data, setData] = useState<Overview | null>(null);
 
+  const [paying, setPaying] = useState<Row | null>(null);
+  const [payAmount, setPayAmount] = useState('');
+  const [savingPay, setSavingPay] = useState(false);
+
   const load = useCallback(() => {
     api.get<Overview>(`/salaries?year=${year}&month=${month}`).then(setData).catch(() => undefined);
   }, [year, month]);
   useEffect(load, [load]);
 
-  async function markPaid(r: Row) {
-    await api.post('/salaries/pay', { teacherId: r.teacherId, periodYear: year, periodMonth: month }).catch(() => undefined);
-    load();
+  function openPay(r: Row) {
+    setPaying(r);
+    // Prefill with what's already paid (so it can be corrected), else the default salary.
+    setPayAmount(String(r.paid && r.amount != null ? r.amount : r.salary));
   }
+
+  async function savePay() {
+    if (!paying) return;
+    setSavingPay(true);
+    try {
+      await api.post('/salaries/pay', {
+        teacherId: paying.teacherId,
+        periodYear: year,
+        periodMonth: month,
+        amount: Number(payAmount) || 0,
+      });
+      setPaying(null);
+      load();
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Could not record salary.');
+    } finally {
+      setSavingPay(false);
+    }
+  }
+
   async function unmark(r: Row) {
     await api.post('/salaries/unpay', { teacherId: r.teacherId, periodYear: year, periodMonth: month }).catch(() => undefined);
     load();
@@ -94,16 +123,28 @@ export default function SalariesPage() {
             {data?.rows.map((r) => (
               <tr key={r.teacherId} className="border-t border-border hover:bg-muted/50">
                 <td className="px-4 py-2 font-medium">{r.name}</td>
-                <td className="px-4 py-2">{r.salary != null ? formatMoney(r.salary) : <span className="text-muted-foreground">not set</span>}</td>
+                <td className="px-4 py-2">
+                  <div>{formatMoney(r.salary)}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {r.manualSalary != null
+                      ? 'fixed salary'
+                      : `${r.studentCount} student${r.studentCount === 1 ? '' : 's'} · 50/50 share`}
+                  </div>
+                </td>
                 <td className="px-4 py-2">
                   {r.paid
                     ? <Badge tone="green">Paid {formatMoney(r.amount)} · {formatDate(r.paidAt)}</Badge>
                     : <Badge tone="red">Unpaid</Badge>}
                 </td>
                 <td className="px-4 py-2 text-right">
-                  {r.paid
-                    ? <Button variant="outline" size="sm" onClick={() => unmark(r)}>Unmark</Button>
-                    : <Button size="sm" onClick={() => markPaid(r)} disabled={r.salary == null}>Mark paid</Button>}
+                  {r.paid ? (
+                    <div className="flex justify-end gap-2">
+                      <Button variant="outline" size="sm" onClick={() => openPay(r)}>Edit</Button>
+                      <Button variant="outline" size="sm" onClick={() => unmark(r)}>Unmark</Button>
+                    </div>
+                  ) : (
+                    <Button size="sm" onClick={() => openPay(r)}>Mark paid</Button>
+                  )}
                 </td>
               </tr>
             ))}
@@ -113,7 +154,37 @@ export default function SalariesPage() {
           </tbody>
         </table>
       </Card>
-      <p className="text-xs text-muted-foreground">Set each teacher’s monthly salary under <strong>Teachers</strong>. “Mark paid” records the payment for the selected month.</p>
+
+      <p className="text-xs text-muted-foreground">
+        Salary defaults to a <strong>50/50 split</strong>: the teacher earns half of what their groups bill
+        (active students × group fee ÷ 2). Set a <strong>fixed salary</strong> on a teacher to override it.
+        “Mark paid” records the payment for the selected month — you can adjust the amount before saving.
+      </p>
+
+      {paying && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setPaying(null)}>
+          <Card className="w-full max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <CardHeader><CardTitle>{paying.paid ? 'Edit salary payment' : 'Pay salary'}</CardTitle></CardHeader>
+            <CardContent className="space-y-3">
+              <p className="text-sm text-muted-foreground">
+                {paying.name} · {MONTHS[month - 1]} {year}
+                <br />
+                {paying.manualSalary != null
+                  ? `Fixed salary: ${formatMoney(paying.manualSalary)}`
+                  : `${paying.studentCount} student${paying.studentCount === 1 ? '' : 's'} · 50/50 share = ${formatMoney(paying.expectedSalary)}`}
+              </p>
+              <div>
+                <label className="mb-1 block text-sm font-medium">Amount to pay</label>
+                <Input type="number" min={0} value={payAmount} onChange={(e) => setPayAmount(e.target.value)} />
+              </div>
+              <div className="flex gap-2">
+                <Button onClick={savePay} disabled={savingPay}>{savingPay ? 'Saving…' : 'Save'}</Button>
+                <Button variant="outline" onClick={() => setPaying(null)}>Cancel</Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
     </div>
   );
 }

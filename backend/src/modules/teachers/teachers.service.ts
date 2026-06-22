@@ -22,7 +22,8 @@ export class TeachersService {
         phone: dto.phone,
         subjectsTaught: dto.subjectsTaught ?? [],
         employmentDate: dto.employmentDate ? new Date(dto.employmentDate) : undefined,
-        salary: dto.salary !== undefined ? new Prisma.Decimal(dto.salary) : undefined,
+        // Blank/omitted salary → auto 50/50 split; a number pins a fixed salary.
+        salary: dto.salary == null ? undefined : new Prisma.Decimal(dto.salary),
         user: {
           create: {
             email: dto.email.toLowerCase(),
@@ -92,7 +93,13 @@ export class TeachersService {
       data: {
         ...dto,
         employmentDate: dto.employmentDate ? new Date(dto.employmentDate) : undefined,
-        salary: dto.salary !== undefined ? new Prisma.Decimal(dto.salary) : undefined,
+        // undefined = leave unchanged; null = clear (back to auto 50/50); number = fixed.
+        salary:
+          dto.salary === undefined
+            ? undefined
+            : dto.salary === null
+              ? null
+              : new Prisma.Decimal(dto.salary),
       },
     });
   }
