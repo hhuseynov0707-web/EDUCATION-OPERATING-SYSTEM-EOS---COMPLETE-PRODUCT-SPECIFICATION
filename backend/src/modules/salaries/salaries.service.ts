@@ -38,8 +38,9 @@ export class SalariesService {
       // Default salary = the teacher's 50% share of their groups' fees.
       const expectedSalary = shareOf(t.groups);
       const studentCount = t.groups.reduce((n, g) => n + g.enrollments.length, 0);
-      // A manually-set salary, if present, overrides the automatic split.
-      const manualSalary = t.salary != null ? Number(t.salary) : null;
+      // A positive, manually-set salary overrides the automatic split; a blank
+      // or 0 salary means "use the 50/50 share".
+      const manualSalary = t.salary != null && Number(t.salary) > 0 ? Number(t.salary) : null;
       const salary = manualSalary ?? expectedSalary;
       return {
         teacherId: t.id,
@@ -81,7 +82,8 @@ export class SalariesService {
       select: { salary: true, groups: groupShareSelect },
     });
     if (!teacher) throw new NotFoundException('Teacher not found');
-    const fallback = teacher.salary != null ? Number(teacher.salary) : shareOf(teacher.groups);
+    const manual = teacher.salary != null && Number(teacher.salary) > 0 ? Number(teacher.salary) : null;
+    const fallback = manual ?? shareOf(teacher.groups);
     const amt = amount ?? fallback;
 
     return this.prisma.salaryPayment.upsert({
