@@ -9,7 +9,9 @@ export function cn(...inputs: ClassValue[]) {
 export function formatMoney(value: number | string | null | undefined): string {
   if (value === null || value === undefined) return '—';
   const n = typeof value === 'string' ? Number(value) : value;
-  return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' }).format(n);
+  if (!Number.isFinite(n)) return '—';
+  // Azerbaijani manat (₼). Format the number, then prefix the symbol.
+  return `₼${new Intl.NumberFormat('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n)}`;
 }
 
 export function formatDate(value: string | Date | null | undefined): string {
