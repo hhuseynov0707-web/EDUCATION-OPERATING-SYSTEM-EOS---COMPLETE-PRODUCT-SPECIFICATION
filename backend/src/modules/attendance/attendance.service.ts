@@ -163,12 +163,16 @@ export class AttendanceService {
       }),
     ]);
 
-    // Fixed anchor for the 8-lesson counter: the group's first-ever lesson if
-    // it predates creation (e.g. backfilled history), otherwise its creation
-    // date. Independent of the query range, so seq never shifts between views.
+    // Anchor for the 8-lesson counter: the earliest of the group's creation,
+    // its first-ever lesson, and the start of the viewed range. Clamping to the
+    // range start guarantees that even months before the group was created in
+    // the system still show their scheduled class-days (so historical / past
+    // attendance can be recorded from a student's enrollment onward).
     const createdDate = toDateOnly(group.createdAt.toISOString());
     const firstLesson = allLessons[0] ? toDateOnly(allLessons[0].date.toISOString()) : null;
-    const anchor = firstLesson && firstLesson < createdDate ? firstLesson : createdDate;
+    let anchor = createdDate;
+    if (firstLesson && firstLesson < anchor) anchor = firstLesson;
+    if (from < anchor) anchor = from;
 
     // A day is a lesson if the group is scheduled that weekday, or a lesson
     // already exists on it (off-schedule make-ups, etc.).
